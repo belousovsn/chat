@@ -1,5 +1,4 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -17,8 +16,7 @@ import { RealtimeService } from "./modules/presence/service.js";
 import { sessionRoutes } from "./modules/sessions/routes.js";
 import { uploadRoutes } from "./modules/uploads/routes.js";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const webDist = path.resolve(currentDir, "../../web/dist");
+const webDist = path.resolve(process.cwd(), "../web/dist");
 
 export const buildApp = async () => {
   const app = Fastify({

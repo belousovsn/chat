@@ -1,15 +1,13 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { pool } from "./client.js";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const sourceDir = path.resolve(currentDir, "../../src/db/migrations");
-const distDir = path.resolve(currentDir, "./migrations");
+const sourceDir = path.resolve(process.cwd(), "src/db/migrations");
+const distDir = path.resolve(process.cwd(), "dist/apps/server/src/db/migrations");
 
 const resolveMigrationDir = async () => {
   try {
-    await mkdir(sourceDir, { recursive: true });
+    await access(sourceDir);
     return sourceDir;
   } catch {
     return distDir;

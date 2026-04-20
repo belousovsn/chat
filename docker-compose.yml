@@ -51,7 +51,7 @@ services:
     volumes:
       - uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "node", "apps/server/dist/healthcheck.js"]
+      test: ["CMD", "node", "apps/server/dist/apps/server/src/healthcheck.js"]
       interval: 10s
       timeout: 5s
       retries: 20

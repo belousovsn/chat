@@ -8,10 +8,10 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "migrate": "node ./dist/db/runMigrations.js",
+    "migrate": "node ./dist/apps/server/src/db/runMigrations.js",
     "seed": "tsx src/db/seed.ts",
     "smoke": "tsx src/scripts/smoke.ts",
-    "start": "node dist/index.js",
+    "start": "node dist/apps/server/src/index.js",
     "test": "tsx src/scripts/run-tests.ts"
   },
   "dependencies": {
