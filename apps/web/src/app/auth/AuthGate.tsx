@@ -59,10 +59,12 @@ export function AuthGate() {
   const resetToken = search.get("token");
 
   const login = useMutation({
-    mutationFn: (input: { email: string; password: string }) => api.login(input)
+    mutationFn: (input: { email: string; password: string }) => api.login(input),
+    onSuccess: () => window.location.reload()
   });
   const register = useMutation({
-    mutationFn: (input: { email: string; username: string; password: string }) => api.register(input)
+    mutationFn: (input: { email: string; username: string; password: string }) => api.register(input),
+    onSuccess: () => window.location.reload()
   });
   const forgot = useMutation({
     mutationFn: (email: string) => api.forgotPassword(email)

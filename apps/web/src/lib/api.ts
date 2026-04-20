@@ -24,7 +24,7 @@ async function request<T>(path: string, method: HttpMethod = "GET", body?: unkno
     credentials: "include"
   };
 
-  if (!isFormData) {
+  if (!isFormData && body !== undefined) {
     init.headers = { "Content-Type": "application/json" };
   }
   if (body) {

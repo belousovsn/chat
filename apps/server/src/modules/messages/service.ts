@@ -54,6 +54,8 @@ const hydrateMessages = async (conversationId: string, limit: number, cursor?: s
     ? []
     : await db.select().from(attachments).where(inArray(attachments.messageId, messageIds));
 
+  const nextCursorRow = rows.length > limit ? page[page.length - 1] : undefined;
+
   return {
     items: page.reverse().map((row) => ({
       id: row.id,
@@ -86,7 +88,9 @@ const hydrateMessages = async (conversationId: string, limit: number, cursor?: s
           uploadedAt: attachment.createdAt.toISOString()
         }))
     })),
-    nextCursor: rows.length > limit && rows[limit] ? new Date(rows[limit].created_at).toISOString() : null
+    nextCursor: nextCursorRow
+      ? new Date(nextCursorRow.created_at).toISOString()
+      : null
   };
 };
 

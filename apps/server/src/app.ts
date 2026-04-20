@@ -18,7 +18,7 @@ import { sessionRoutes } from "./modules/sessions/routes.js";
 import { uploadRoutes } from "./modules/uploads/routes.js";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const webDist = path.resolve(currentDir, "../../../web/dist");
+const webDist = path.resolve(currentDir, "../../web/dist");
 
 export const buildApp = async () => {
   const app = Fastify({
@@ -56,7 +56,7 @@ export const buildApp = async () => {
   await realtime.install();
   app.decorate("realtime", realtime);
 
-  app.get("/*", async (request, reply) => {
+  app.setNotFoundHandler(async (request, reply) => {
     if (String(request.url).startsWith("/api/")) {
       return reply.status(404).send({ error: "Not found" });
     }
