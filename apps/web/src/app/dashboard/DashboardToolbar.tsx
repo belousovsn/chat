@@ -1,22 +1,22 @@
 type DashboardToolbarProps = {
-  canManageRoom: boolean;
   onOpenCreateRoom: () => void;
-  onOpenManageRoom: () => void;
-  onRefreshContacts: () => void;
-  onRefreshSessions: () => void;
+  onOpenSettings: () => void;
+  onOpenSocial: () => void;
   onSignOut: () => void;
 };
 
 export function DashboardToolbar(props: DashboardToolbarProps) {
   return (
     <header className="topbar">
-      <div className="logo">ChatLogo</div>
+      <div>
+        <div className="logo">Northstar Chat</div>
+        <p className="toolbar-copy">Chats first. Everything else on demand.</p>
+      </div>
       <nav className="topnav">
-        <button onClick={props.onOpenCreateRoom}>Create room</button>
-        <button onClick={props.onOpenManageRoom} disabled={!props.canManageRoom}>Manage room</button>
-        <button onClick={props.onRefreshSessions}>Sessions</button>
-        <button onClick={props.onRefreshContacts}>Contacts</button>
-        <button onClick={props.onSignOut}>Sign out</button>
+        <button className="primary" onClick={props.onOpenCreateRoom}>New room</button>
+        <button className="ghost" onClick={props.onOpenSocial}>People</button>
+        <button className="ghost" onClick={props.onOpenSettings}>Settings</button>
+        <button className="ghost" onClick={props.onSignOut}>Sign out</button>
       </nav>
     </header>
   );

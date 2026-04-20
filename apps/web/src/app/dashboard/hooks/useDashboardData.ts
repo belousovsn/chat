@@ -44,8 +44,13 @@ export function useDashboardData(args: UseDashboardDataArgs) {
   });
 
   useEffect(() => {
-    if (!selectedConversationId && conversations.data?.[0]) {
-      setSelectedConversationId(conversations.data[0].id);
+    if (!conversations.data) {
+      return;
+    }
+
+    const selectionStillExists = conversations.data.some((conversation) => conversation.id === selectedConversationId);
+    if (!selectedConversationId || !selectionStillExists) {
+      setSelectedConversationId(conversations.data[0]?.id ?? null);
     }
   }, [conversations.data, selectedConversationId, setSelectedConversationId]);
 

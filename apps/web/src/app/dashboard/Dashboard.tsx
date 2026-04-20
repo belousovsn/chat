@@ -1,16 +1,18 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useChatStore } from "../../features/chat/store";
 import { api } from "../../lib/api";
 import { ChatPanel } from "./ChatPanel";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { DashboardToolbar } from "./DashboardToolbar";
-import { InfoSidebar } from "./InfoSidebar";
+import { InfoSidebar, type UtilityPanelMode } from "./InfoSidebar";
 import { CreateRoomModal, ManageRoomModal } from "./RoomModals";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { useDashboardRealtime } from "./hooks/useDashboardRealtime";
 import { useRoomModalState } from "./hooks/useRoomModalState";
 import { dashboardQueryKeys } from "./queryKeys";
+
+type MobileView = "sidebar" | "chat";
 
 export function Dashboard() {
   const queryClient = useQueryClient();
@@ -24,8 +26,10 @@ export function Dashboard() {
     clearUploadedAttachments,
     removeUploadedAttachment
   } = useChatStore();
+  const [mobileView, setMobileView] = useState<MobileView>("sidebar");
   const [publicSearch, setPublicSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [utilityPanel, setUtilityPanel] = useState<UtilityPanelMode | null>(null);
   const roomModals = useRoomModalState();
 
   const {
@@ -42,11 +46,29 @@ export function Dashboard() {
     selectedConversationId,
     setSelectedConversationId
   });
-  const activityTick = useDashboardRealtime({
+
+  useDashboardRealtime({
     latestMessageId: messages.data?.items.at(-1)?.id ?? null,
     queryClient,
     selectedConversationId
   });
+
+  useEffect(() => {
+    clearUploadedAttachments();
+    setReplyToMessageId(null);
+  }, [clearUploadedAttachments, selectedConversationId, setReplyToMessageId]);
+
+  useEffect(() => {
+    setMobileView(selectedConversationId ? "chat" : "sidebar");
+  }, [selectedConversationId]);
+
+  const selectedConversationTitle = useMemo(() => {
+    if (conversationDetails.data?.kind === "direct") {
+      return conversationDetails.data.directPeer?.username ?? conversationDetails.data.name;
+    }
+
+    return conversationDetails.data?.name ?? "Conversation details";
+  }, [conversationDetails.data]);
 
   const createRoom = useMutation({
     mutationFn: api.createRoom,
@@ -121,19 +143,13 @@ export function Dashboard() {
   return (
     <div className="dashboard">
       <DashboardToolbar
-        canManageRoom={Boolean(selectedConversationId && selectedSummary?.kind === "room")}
         onOpenCreateRoom={roomModals.openCreateRoom}
-        onOpenManageRoom={roomModals.openManageRoom}
-        onRefreshContacts={() => {
-          void contacts.refetch();
-        }}
-        onRefreshSessions={() => {
-          void sessions.refetch();
-        }}
+        onOpenSettings={() => setUtilityPanel("settings")}
+        onOpenSocial={() => setUtilityPanel("social")}
         onSignOut={() => logout.mutate()}
       />
 
-      <div className="workspace">
+      <div className={`workspace ${mobileView === "chat" ? "show-chat" : "show-sidebar"}`}>
         <ConversationSidebar
           contacts={contacts.data?.friends}
           conversations={conversations.data}
@@ -162,7 +178,10 @@ export function Dashboard() {
           onRefreshContacts={() => {
             void contacts.refetch();
           }}
-          onSelectConversation={setSelectedConversationId}
+          onSelectConversation={(conversationId) => {
+            setSelectedConversationId(conversationId);
+            setMobileView("chat");
+          }}
           publicRooms={publicRooms.data}
           publicSearch={publicSearch}
           selectedConversationId={selectedConversationId}
@@ -170,11 +189,13 @@ export function Dashboard() {
         />
 
         <ChatPanel
-          activityTick={activityTick}
           addUploadedAttachment={addUploadedAttachment}
+          canManageRoom={Boolean(selectedConversationId && selectedSummary?.kind === "room")}
           conversationDetails={conversationDetails.data}
+          isSending={sendMessage.isPending}
           meUserId={me.data?.user.id}
           messages={messages.data}
+          onBackToList={() => setMobileView("sidebar")}
           onDeleteMessage={async (messageId) => {
             try {
               await api.deleteMessage(messageId);
@@ -223,33 +244,49 @@ export function Dashboard() {
               throw error;
             }
           }}
+          onOpenDetails={() => setUtilityPanel("details")}
+          onOpenManageRoom={roomModals.openManageRoom}
           onRemoveAttachment={removeUploadedAttachment}
-          onSendMessage={(body) => {
+          onSendMessage={async (body) => {
             if (!selectedConversationId) {
-              return;
+              return false;
             }
-            sendMessage.mutate({ conversationId: selectedConversationId, body });
+            try {
+              await sendMessage.mutateAsync({ conversationId: selectedConversationId, body });
+              return true;
+            } catch {
+              return false;
+            }
           }}
           queryClient={queryClient}
           replyToMessageId={replyToMessageId}
           selectedConversationId={selectedConversationId}
           selectedSummary={selectedSummary}
           setReplyToMessageId={setReplyToMessageId}
+          showBackButton={mobileView === "chat"}
           uploadedAttachments={uploadedAttachments}
         />
+      </div>
 
+      {utilityPanel && <button className="utility-backdrop" aria-label="Close panel" onClick={() => setUtilityPanel(null)} />}
+
+      {utilityPanel && (
         <InfoSidebar
+          conversationTitle={selectedConversationTitle}
           meUserId={me.data?.user.id}
           members={conversationDetails.data?.members}
+          mode={utilityPanel}
           onAcceptFriendRequest={(requestId) => {
             void api.acceptFriendRequest(requestId).then(() => contacts.refetch());
           }}
+          onChangeMode={setUtilityPanel}
           onChangePassword={(input, onSuccess) => {
             void api.changePassword(input.currentPassword, input.newPassword).then(() => {
               setStatus("Password changed.");
               onSuccess();
             }).catch((error: Error) => setStatus(error.message));
           }}
+          onClose={() => setUtilityPanel(null)}
           onDeleteAccount={() => {
             void api.deleteAccount().then(() => {
               window.location.reload();
@@ -276,7 +313,7 @@ export function Dashboard() {
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
         />
-      </div>
+      )}
 
       {roomModals.createRoomOpen && (
         <CreateRoomModal
@@ -297,7 +334,9 @@ export function Dashboard() {
         />
       )}
 
-      <div className="status-line">{status || createRoom.error?.message || sendMessage.error?.message}</div>
+      <div className={`status-line ${status || createRoom.error?.message || sendMessage.error?.message ? "visible" : ""}`}>
+        {status || createRoom.error?.message || sendMessage.error?.message || "All changes synced."}
+      </div>
     </div>
   );
 }

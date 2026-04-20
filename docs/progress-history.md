@@ -14,7 +14,9 @@
 2026-04-20 15:35 UTC | asked: verify W1-W4 reports | done: confirmed W1 UI actions, W2 typed realtime cleanup, W3 realtime access hardening, and W4 root script/attachment cleanup landed; reran package and root check/build/test successfully | next: assign backend regression coverage, manual QA/demo pass, and Docker verification on proper machine
 2026-04-20 15:45 UTC | asked: prepare fresh-session packets for next agents | done: updated Docker packet and added fresh W6/W7/W8 packets for backend regression tests, manual QA, and repo hygiene closeout; refreshed workboard and agent-start-here | next: dispatch fresh-session agents against W5-W8 as environment allows
 2026-04-20 16:10 UTC | asked: review W6/W7/W8 reports | done: verified W6 regression tests landed, W7 manual QA fixes landed, W8 repo hygiene landed, removed temporary W7 logs, and reran web/server/root verification successfully | next: run W5 Docker verification on proper machine, then do final commit/PR closeout
+2026-04-20 23:22 UTC | asked: fix frontend UX beyond visual polish | done: refactored web shell into chat-first flow with tabbed left navigator, on-demand details/people/settings drawer, mobile list/chat split, pinned composer, and proper message-scroll behavior near input; `@chat/web build` passed | next: browser QA for new navigation flow, then final closeout after Docker verification
 
+<hard to make LLM do proper UI without explicit details>
 ---
 
 # Human-Readable Status Report
