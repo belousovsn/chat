@@ -1,4 +1,4 @@
-Status: ready
+Status: completed - generated dist-types output now ignored and removed from tracked tree, closeout docs updated, root check still passes
 Goal: Reduce merge noise and closeout friction before commit/PR without changing shipped behavior.
 Dependencies: current W1-W4 follow-up work already landed in working tree.
 Required context: repo root, generated-output policy, and current git diff.
@@ -23,3 +23,11 @@ Acceptance checks:
 Notes:
 - Do not use destructive git commands.
 - If the repo intentionally tracks generated files, normalize them rather than removing them.
+
+Task result:
+- `.gitignore` now explicitly ignores generated `apps/web/dist-types/`.
+- `README.md` and `docs/agent-start-here.md` now document that `dist-types` is local generated output, not tracked source.
+- tracked `apps/web/dist-types/**` output removed from git working tree to cut merge noise.
+- Coordinator cleanup follow-up removed temporary W7 server logs from repo root.
+- Checks:
+  - `corepack pnpm check` passed

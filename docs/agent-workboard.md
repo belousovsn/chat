@@ -17,15 +17,7 @@ Coordinator-owned file. Worker agents should read, not edit.
 - W5 Docker verification
   - Packet: `docs/agent-tasks/W5-docker-verification.md`
   - Scope: Docker-capable machine only
-- W6 backend regression tests
-  - Packet: `docs/agent-tasks/W6-backend-regression-tests.md`
-  - Scope: server/tests only
-- W7 manual QA and demo pass
-  - Packet: `docs/agent-tasks/W7-manual-qa-demo-pass.md`
-  - Scope: verification-first, small local fixes only
-- W8 repo hygiene and closeout
-  - Packet: `docs/agent-tasks/W8-repo-hygiene-and-closeout.md`
-  - Scope: docs/config/generated-output only
+- Coordinator task next: review final tree, decide commit/PR boundary, then run W5 on proper machine
 
 ## Completed
 
@@ -57,6 +49,27 @@ Coordinator-owned file. Worker agents should read, not edit.
 - Packet: `docs/agent-tasks/W4-frontend-chat-polish.md`
 - Result: dashboard query/realtime/modal concerns split into dedicated hooks/components, `Dashboard.tsx` kept compact, and web check/build passed
 
+### W6 Backend Regression Tests
+
+- Priority: high
+- Parallel safety: server/tests-only
+- Packet: `docs/agent-tasks/W6-backend-regression-tests.md`
+- Result: backend regression coverage added for pagination, reply/read validation, admin/ban rules, and direct realtime recipients, with clean skip behavior when PostgreSQL is absent
+
+### W7 Manual QA And Demo Pass
+
+- Priority: high
+- Parallel safety: verification-first
+- Packet: `docs/agent-tasks/W7-manual-qa-demo-pass.md`
+- Result: local manual QA surfaced and fixed auth/session refresh, SPA fallback serving, and message history pagination issues
+
+### W8 Repo Hygiene And Closeout
+
+- Priority: medium
+- Parallel safety: docs/config/generated-output only
+- Packet: `docs/agent-tasks/W8-repo-hygiene-and-closeout.md`
+- Result: generated `apps/web/dist-types/**` output now ignored and removed from tracked tree, with closeout docs updated
+
 ## Parked / Blocked
 
 - None beyond environment-specific blockers inside packet scopes.
@@ -64,6 +77,5 @@ Coordinator-owned file. Worker agents should read, not edit.
 ## Suggested parallel assignment
 
 - Next likely mix:
-  - W6 and W8 together
-  - W7 after runnable app confirmed
-  - W5 only on machine with Docker available
+  - W5 on Docker-capable machine
+  - coordinator final review / commit prep locally

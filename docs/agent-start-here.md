@@ -9,6 +9,7 @@ Use this file first. Do not read whole repo unless blocked.
 - Root workflow status: `corepack pnpm check`, `build`, and `test` now pass in this Windows shell.
 - Docker path exists in repo but is intentionally deferred until separate machine is available.
 - Non-Docker verification path now exists in `README.md`: set local server env, run `corepack pnpm --filter @chat/server migrate`, `seed`, then `smoke`.
+- `apps/web/dist-types/` is generated local output from web/package type builds and should stay ignored, not tracked.
 - Biggest current code concentration:
   - frontend follow-up work now sits under `apps/web/src/app/dashboard/**` and `apps/web/src/lib/api.ts`.
   - `apps/server/src/modules/conversations/service.ts` holds much room/direct-chat policy.
