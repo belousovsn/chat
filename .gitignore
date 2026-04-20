@@ -1,0 +1,11 @@
+node_modules
+.pnpm-store
+dist
+coverage
+.env
+.env.local
+uploads
+apps/web/dist
+apps/server/dist
+apps/server/public
+postgres-data
