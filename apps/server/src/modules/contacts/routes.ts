@@ -43,7 +43,12 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
   app.delete("/api/contacts/:userId", async (request, reply) => {
     try {
       const auth = requireAuth(request);
-      await removeFriend(auth, String((request.params as { userId: string }).userId));
+      const targetUserId = String((request.params as { userId: string }).userId);
+      await removeFriend(auth, targetUserId);
+      await Promise.all([
+        app.realtime.syncUserConversationMembership(auth.user.id),
+        app.realtime.syncUserConversationMembership(targetUserId)
+      ]);
       return listContacts(auth);
     } catch (error) {
       return sendError(reply, error);
@@ -53,7 +58,12 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/contacts/:userId/block", async (request, reply) => {
     try {
       const auth = requireAuth(request);
-      await blockUser(auth, String((request.params as { userId: string }).userId));
+      const targetUserId = String((request.params as { userId: string }).userId);
+      await blockUser(auth, targetUserId);
+      await Promise.all([
+        app.realtime.syncUserConversationMembership(auth.user.id),
+        app.realtime.syncUserConversationMembership(targetUserId)
+      ]);
       return listContacts(auth);
     } catch (error) {
       return sendError(reply, error);

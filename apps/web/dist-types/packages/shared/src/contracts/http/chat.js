@@ -20,6 +20,39 @@ const messageReplySchema = z.object({
     authorUsername: z.string(),
     body: z.string().nullable()
 });
+export const contactFriendSchema = z.object({
+    id: z.string().uuid(),
+    username: z.string(),
+    presence: z.enum(["online", "afk", "offline"]),
+    since: z.string()
+});
+export const contactRequestSchema = z.object({
+    id: z.string().uuid(),
+    message: z.string().nullable(),
+    created_at: z.string(),
+    requester_username: z.string(),
+    receiver_username: z.string(),
+    requester_id: z.string().uuid(),
+    receiver_id: z.string().uuid()
+});
+export const contactsResponseSchema = z.object({
+    friends: z.array(contactFriendSchema),
+    requests: z.array(contactRequestSchema)
+});
+export const publicRoomSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    member_count: z.number().int().nonnegative(),
+    is_member: z.boolean()
+});
+export const roomBanSchema = z.object({
+    user_id: z.string().uuid(),
+    username: z.string(),
+    banned_by_id: z.string().uuid(),
+    banned_by_username: z.string(),
+    created_at: z.string()
+});
 export const memberSchema = z.object({
     userId: z.string().uuid(),
     username: z.string(),
@@ -33,9 +66,11 @@ export const roomSummarySchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     visibility: z.enum(["public", "private"]).nullable(),
+    ownerId: z.string().uuid().nullable(),
     unreadCount: z.number().int().nonnegative(),
     memberCount: z.number().int().nonnegative(),
     lastMessageAt: z.string().nullable(),
+    isFrozen: z.boolean(),
     directPeer: z.object({
         id: z.string().uuid(),
         username: z.string(),
@@ -43,7 +78,6 @@ export const roomSummarySchema = z.object({
     }).nullable()
 });
 export const roomDetailsSchema = roomSummarySchema.extend({
-    ownerId: z.string().uuid().nullable(),
     members: z.array(memberSchema)
 });
 export const chatMessageSchema = z.object({

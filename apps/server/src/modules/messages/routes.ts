@@ -26,7 +26,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
         replyToMessageId: input.replyToMessageId ?? null,
         attachmentIds: input.attachmentIds
       });
-      app.realtime.emitConversationUpdate(params.id, "message.created", message);
+      await app.realtime.emitConversationUpdate(params.id, "message.created", message);
       return message;
     } catch (error) {
       return sendError(reply, error);
@@ -39,7 +39,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const params = request.params as { id: string };
       const input = editMessageInputSchema.parse(request.body);
       const message = await editMessage(auth, params.id, input.body);
-      app.realtime.emitConversationUpdate(message.conversationId, "message.updated", message);
+      await app.realtime.emitConversationUpdate(message.conversationId, "message.updated", message);
       return message;
     } catch (error) {
       return sendError(reply, error);
@@ -51,7 +51,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const params = request.params as { id: string };
       const result = await deleteMessage(auth, params.id);
-      app.realtime.emitConversationUpdate(result.conversationId, "message.deleted", { messageId: params.id });
+      await app.realtime.emitConversationUpdate(result.conversationId, "message.deleted", { messageId: params.id });
       return { ok: true };
     } catch (error) {
       return sendError(reply, error);

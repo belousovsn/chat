@@ -11,7 +11,7 @@ Classic web chat application with:
 - file and image uploads stored on local disk
 - room moderation, admins, bans, and session management
 
-## Run
+## Docker Run
 
 Requirements:
 
@@ -30,11 +30,74 @@ Open:
 
 The app container runs migrations and demo seed data on startup.
 
+Docker status on this machine: deferred. Repo keeps Docker path checked in, but full container verification still needs separate machine with Docker available.
+
+## Local Non-Docker Smoke Path
+
+Use this when Docker unavailable and you still need seeded demo verification.
+
+Requirements:
+
+- PostgreSQL 16 reachable at `127.0.0.1:5432`
+- Node.js with Corepack enabled
+- optional Mailpit at `127.0.0.1:1025` and `127.0.0.1:8025`
+
+PowerShell env for local run:
+
+```powershell
+$env:DATABASE_URL = "postgres://chat:chat@127.0.0.1:5432/chat"
+$env:SESSION_SECRET = "local-dev-session-secret"
+$env:APP_URL = "http://127.0.0.1:8080"
+$env:SMTP_HOST = "127.0.0.1"
+$env:SMTP_PORT = "1025"
+$env:UPLOAD_DIR = "uploads"
+```
+
+Install and verify:
+
+```bash
+corepack pnpm install --reporter=append-only --force --config.confirmModulesPurge=false
+corepack pnpm --filter @chat/server build
+corepack pnpm --filter @chat/server migrate
+corepack pnpm --filter @chat/server seed
+corepack pnpm --filter @chat/server smoke
+```
+
+`corepack pnpm --filter @chat/server smoke` verifies:
+
+- seeded users `alice`, `bob`, `carol`
+- seeded public room `general`
+- in-process `GET /api/health`
+- demo login for `alice@example.com`
+
+Start app after smoke passes:
+
+```bash
+corepack pnpm --filter @chat/server dev
+```
+
+Open:
+
+- App: `http://localhost:8080`
+- Mailpit: `http://localhost:8025`
+
 ## Demo Accounts
 
 - `alice@example.com` / `password123`
 - `bob@example.com` / `password123`
 - `carol@example.com` / `password123`
+
+## Demo Flow
+
+Use this order for fast manual demo:
+
+1. Sign in as `alice@example.com`.
+2. Open seeded room `general` and send message.
+3. Open direct chat with `bob` from contacts and verify DM flow.
+4. Send friend request or open existing friendship state with `carol`.
+5. Upload one image or file and confirm message attachment renders.
+6. Open second browser/profile as `bob` to confirm presence and realtime updates.
+7. Visit session management and verify current session visible.
 
 ## Notes
 

@@ -55,6 +55,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
         description: input.description ?? null,
         visibility: input.visibility
       });
+      await app.realtime.syncUserConversationMembership(auth.user.id);
       return getConversationDetails(auth, id);
     } catch (error) {
       return sendError(reply, error);
@@ -88,6 +89,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const id = String((request.params as { id: string }).id);
       await joinPublicRoom(auth, id);
+      await app.realtime.syncUserConversationMembership(auth.user.id);
       return getConversationDetails(auth, id);
     } catch (error) {
       return sendError(reply, error);
@@ -98,6 +100,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = requireAuth(request);
       await leaveRoom(auth, String((request.params as { id: string }).id));
+      await app.realtime.syncUserConversationMembership(auth.user.id);
       return listConversations(auth);
     } catch (error) {
       return sendError(reply, error);
@@ -130,6 +133,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
     try {
       const auth = requireAuth(request);
       await acceptInvite(auth, String((request.params as { id: string }).id));
+      await app.realtime.syncUserConversationMembership(auth.user.id);
       return listConversations(auth);
     } catch (error) {
       return sendError(reply, error);
@@ -163,6 +167,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const params = request.params as { id: string; userId: string };
       await banMember(auth, params.id, params.userId);
+      await app.realtime.syncUserConversationMembership(params.userId);
       return getConversationDetails(auth, params.id);
     } catch (error) {
       return sendError(reply, error);
@@ -182,6 +187,7 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const params = request.params as { id: string; userId: string };
       await unbanUser(auth, params.id, params.userId);
+      await app.realtime.syncUserConversationMembership(params.userId);
       return listBans(auth, params.id);
     } catch (error) {
       return sendError(reply, error);
@@ -191,7 +197,12 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
   app.post("/api/directs/:userId", async (request, reply) => {
     try {
       const auth = requireAuth(request);
-      const id = await getOrCreateDirectConversation(auth, String((request.params as { userId: string }).userId));
+      const targetUserId = String((request.params as { userId: string }).userId);
+      const id = await getOrCreateDirectConversation(auth, targetUserId);
+      await Promise.all([
+        app.realtime.syncUserConversationMembership(auth.user.id),
+        app.realtime.syncUserConversationMembership(targetUserId)
+      ]);
       return getConversationDetails(auth, id);
     } catch (error) {
       return sendError(reply, error);

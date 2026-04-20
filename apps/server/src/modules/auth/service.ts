@@ -3,9 +3,7 @@ import { and, eq, isNull, ne, or } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { db } from "../../db/client.js";
 import {
-  attachments,
   conversationMembers,
-  conversations,
   friendships,
   messages,
   passwordResetTokens,
@@ -14,7 +12,7 @@ import {
   userBlocks,
   users
 } from "../../db/schema.js";
-import { deleteStoredFile } from "../../lib/files.js";
+import { deleteAttachmentsByUploaderId } from "../../lib/attachments.js";
 import { HttpError } from "../../lib/http.js";
 import { createMailer } from "../../lib/mailer.js";
 import {
@@ -152,15 +150,7 @@ export const changePassword = async (auth: AuthSession, currentPassword: string,
 };
 
 export const deleteAccount = async (auth: AuthSession) => {
-  const ownedRooms = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.ownerId, auth.user.id), eq(conversations.kind, "room")));
-
-  for (const room of ownedRooms) {
-    const roomAttachments = await db.select({ storedName: attachments.storedName }).from(attachments).where(eq(attachments.conversationId, room.id));
-    for (const attachment of roomAttachments) {
-      await deleteStoredFile(attachment.storedName);
-    }
-  }
-
+  await deleteAttachmentsByUploaderId(auth.user.id);
   await db.delete(friendships).where(or(eq(friendships.userAId, auth.user.id), eq(friendships.userBId, auth.user.id)));
   await db.delete(userBlocks).where(or(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, auth.user.id)));
   await db.delete(readCursors).where(eq(readCursors.userId, auth.user.id));

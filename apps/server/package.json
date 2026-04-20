@@ -10,8 +10,9 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "migrate": "node ./dist/db/runMigrations.js",
     "seed": "tsx src/db/seed.ts",
+    "smoke": "tsx src/scripts/smoke.ts",
     "start": "node dist/index.js",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx src/scripts/run-tests.ts"
   },
   "dependencies": {
     "@chat/shared": "workspace:*",

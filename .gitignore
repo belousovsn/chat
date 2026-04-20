@@ -4,9 +4,10 @@ dist
 coverage
 .env
 .env.local
-uploads
+/uploads
 apps/web/dist
 apps/web/dist-types
 apps/server/dist
 apps/server/public
 postgres-data
+docs/agent-lanes/lane-*.md

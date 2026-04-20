@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type UploadedAttachment = {
+export type UploadedAttachment = {
   id: string;
   originalName: string;
   downloadUrl: string;
