@@ -1,10 +1,58 @@
-CREATE TYPE presence_state AS ENUM ('online', 'afk', 'offline');
-CREATE TYPE conversation_kind AS ENUM ('room', 'direct');
-CREATE TYPE room_visibility AS ENUM ('public', 'private');
-CREATE TYPE membership_role AS ENUM ('owner', 'admin', 'member');
-CREATE TYPE conversation_member_status AS ENUM ('active', 'left', 'banned');
-CREATE TYPE attachment_kind AS ENUM ('image', 'file');
-CREATE TYPE friend_request_status AS ENUM ('pending', 'accepted');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'presence_state') THEN
+    CREATE TYPE presence_state AS ENUM ('online', 'afk', 'offline');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'conversation_kind') THEN
+    CREATE TYPE conversation_kind AS ENUM ('room', 'direct');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'room_visibility') THEN
+    CREATE TYPE room_visibility AS ENUM ('public', 'private');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'membership_role') THEN
+    CREATE TYPE membership_role AS ENUM ('owner', 'admin', 'member');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'conversation_member_status') THEN
+    CREATE TYPE conversation_member_status AS ENUM ('active', 'left', 'banned');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'attachment_kind') THEN
+    CREATE TYPE attachment_kind AS ENUM ('image', 'file');
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'friend_request_status') THEN
+    CREATE TYPE friend_request_status AS ENUM ('pending', 'accepted');
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
