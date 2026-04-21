@@ -15,15 +15,26 @@
 2026-04-20 15:45 UTC | asked: prepare fresh-session packets for next agents | done: updated Docker packet and added fresh W6/W7/W8 packets for backend regression tests, manual QA, and repo hygiene closeout; refreshed workboard and agent-start-here | next: dispatch fresh-session agents against W5-W8 as environment allows
 2026-04-20 16:10 UTC | asked: review W6/W7/W8 reports | done: verified W6 regression tests landed, W7 manual QA fixes landed, W8 repo hygiene landed, removed temporary W7 logs, and reran web/server/root verification successfully | next: run W5 Docker verification on proper machine, then do final commit/PR closeout
 2026-04-20 23:22 UTC | asked: fix frontend UX beyond visual polish | done: refactored web shell into chat-first flow with tabbed left navigator, on-demand details/people/settings drawer, mobile list/chat split, pinned composer, and proper message-scroll behavior near input; `@chat/web build` passed | next: browser QA for new navigation flow, then final closeout after Docker verification
+2026-04-21 21:35 UTC | asked: deploy app to production droplet | done: cleaned old services from new droplet, added persistent swap, deployed Docker Compose stack behind `nginx`, issued Let's Encrypt TLS, and verified public app + health endpoint on `https://chat.memdecks.com` | next: codify deploy assets in repo, wire real SMTP, backups, and continue with XMPP planning
 
 <hard to make LLM do proper UI without explicit details>
 ---
 
 # Human-Readable Status Report
 
-- Overall project status: app close to ship. W1-W8 local work done except Docker verification on proper machine.
+- Overall project status: app deployed publicly on `https://chat.memdecks.com`. Local MVP work and first production bring-up are done.
 - What's built: auth, sessions, rooms, DMs, friends, blocking, presence, messages, uploads, moderation, smoke flow, regression tests, and coordinator docs. Monorepo split into `apps/server`, `apps/web`, `packages/shared`.
 - W1 through W8: shell split, server harden, smoke/docs, frontend polish, Docker packet, backend regressions, manual QA fixes, and repo hygiene all landed.
-- What verified: `@chat/server check` pass. `@chat/server build` pass. `@chat/server test` pass. `@chat/web check` pass. `@chat/web build` pass. Root `corepack pnpm check/build` pass. Smoke flow logic exists and documented.
-- What blocked: full Docker verify not done on this machine. DB-backed regression cases skip when PostgreSQL is absent at `127.0.0.1:5432`.
-- What remains: run W5 on Docker-capable machine, then final commit/PR closeout.
+- What verified: `@chat/server check` pass. `@chat/server build` pass. `@chat/server test` pass. `@chat/web check` pass. `@chat/web build` pass. Root `corepack pnpm check/build` pass. Public production deploy verified with live HTML, `/api/health`, HTTPS, and register flow on `chat.memdecks.com`.
+- What blocked: real SMTP is still not wired, backups and monitoring are not yet automated, and XMPP/Jabber support is still pending. DB-backed regression cases still depend on PostgreSQL availability in local environments.
+- What remains: commit production deploy assets to repo, wire real SMTP, add backup/restore path, add monitoring, then continue with thin-slice XMPP implementation.
+
+---
+
+## Tech Stack
+
+- Frontend: React 19, React Router 7, TanStack Query, Zustand, Vite, TypeScript
+- Backend: Fastify 5, Socket.IO 4, TypeScript
+- Data: PostgreSQL 16, Drizzle ORM, `pg`
+- Auth and security: Argon2 password hashing, signed cookie sessions, reverse-proxy-aware secure cookies in production
+- Infra and ops: Docker Compose, `nginx`, Let's Encrypt `certbot`, Mailpit for current password-reset capture

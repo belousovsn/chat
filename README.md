@@ -32,6 +32,17 @@ The app container runs migrations and demo seed data on startup.
 
 Docker status on this machine: deferred. Repo keeps Docker path checked in, but full container verification still needs separate machine with Docker available.
 
+## Production Deploy
+
+Production deployment assets now live in:
+
+- [docker-compose.prod.yml](docker-compose.prod.yml)
+- [.env.production.example](.env.production.example)
+- [ops/nginx/chat.memdecks.com.conf](ops/nginx/chat.memdecks.com.conf)
+- [docs/production-deploy.md](docs/production-deploy.md)
+
+Current deployed host: `https://chat.memdecks.com`
+
 ## Local Non-Docker Smoke Path
 
 Use this when Docker unavailable and you still need seeded demo verification.

@@ -25,4 +25,4 @@ RUN corepack enable
 
 COPY --from=build /app /app
 
-CMD ["sh", "-c", "pnpm --filter @chat/server migrate && pnpm --filter @chat/server seed && pnpm --filter @chat/server start"]
+CMD ["sh", "-c", "pnpm --filter @chat/server migrate && if [ \"${RUN_SEED:-true}\" = \"true\" ]; then pnpm --filter @chat/server seed; fi && pnpm --filter @chat/server start"]

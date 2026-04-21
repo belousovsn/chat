@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { sessions, users } from "../db/schema.js";
+import { config } from "../config.js";
 import { HttpError } from "./http.js";
 
 export const sessionCookieName = "chat_session";
@@ -29,6 +30,7 @@ export const setSessionCookie = async (reply: FastifyReply, sessionId: string) =
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    secure: config.appUrl.startsWith("https://"),
     signed: false,
     maxAge: 60 * 60 * 24 * 30
   });

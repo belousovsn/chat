@@ -20,7 +20,8 @@ const webDist = path.resolve(process.cwd(), "../web/dist");
 
 export const buildApp = async () => {
   const app = Fastify({
-    logger: true
+    logger: true,
+    trustProxy: true
   });
 
   await app.register(cookie, {
