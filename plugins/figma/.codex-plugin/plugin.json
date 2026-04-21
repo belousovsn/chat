@@ -1,0 +1,38 @@
+{
+  "name": "figma",
+  "version": "0.1.0",
+  "description": "Turn Figma frames, exports, and screenshots into focused UI implementation loops.",
+  "author": {
+    "name": "ser",
+    "email": "local@codex.invalid",
+    "url": "https://openai.com/codex"
+  },
+  "homepage": "https://openai.com/index/figma-partnership/",
+  "repository": "https://openai.com/index/figma-partnership/",
+  "license": "Proprietary",
+  "keywords": [
+    "figma",
+    "design",
+    "ui",
+    "frontend"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Figma",
+    "shortDescription": "Work from Figma frames and exports",
+    "longDescription": "Use local Figma-oriented workflows to translate frame screenshots, exports, and design notes into focused frontend implementation passes.",
+    "developerName": "Local",
+    "category": "Design",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/index/figma-partnership/",
+    "defaultPrompt": [
+      "Review this Figma frame screenshot and align the current UI to it.",
+      "Extract the navigation model from this mockup and implement it.",
+      "Compare current UI to this design export and fix the biggest mismatch."
+    ],
+    "brandColor": "#A259FF"
+  }
+}

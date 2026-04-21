@@ -48,6 +48,24 @@ export function ChatPanel(props: ChatPanelProps) {
     && !props.isSending
     && (draftBody.trim() || props.uploadedAttachments.length > 0)
   );
+  const roomTitle = props.conversationDetails?.kind === "direct"
+    ? props.conversationDetails.directPeer?.username ?? props.conversationDetails.name
+    : props.conversationDetails?.name ?? "Choose a conversation";
+  const participants = useMemo(() => {
+    if (props.conversationDetails?.kind === "room") {
+      return props.conversationDetails.members;
+    }
+
+    if (props.conversationDetails?.kind === "direct" && props.conversationDetails.directPeer) {
+      return [{
+        key: props.conversationDetails.directPeer.id,
+        presence: props.conversationDetails.directPeer.presence,
+        username: props.conversationDetails.directPeer.username
+      }];
+    }
+
+    return [];
+  }, [props.conversationDetails]);
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -123,38 +141,22 @@ export function ChatPanel(props: ChatPanelProps) {
   };
 
   return (
-    <main className="chat-panel">
-      <section className="chat-header">
-        <div className="chat-heading">
-          {props.showBackButton && (
-            <button className="ghost mobile-back" onClick={props.onBackToList}>Back</button>
-          )}
-          <div className="chat-avatar" aria-hidden="true">
-            {(props.conversationDetails?.kind === "direct"
-              ? props.conversationDetails.directPeer?.username ?? props.conversationDetails.name
-              : props.conversationDetails?.name ?? "C").slice(0, 1).toUpperCase()}
+    <main className="oldschool-chat oldschool-bevel">
+      <section className="oldschool-chat-header oldschool-bevel">
+        <div>
+          <div className="oldschool-chat-title-row">
+            {props.showBackButton && (
+              <button type="button" className="oldschool-button mobile-back" onClick={props.onBackToList}>Back</button>
+            )}
+            <strong>{props.conversationDetails?.kind === "room" ? `#${roomTitle}` : roomTitle}</strong>
           </div>
-          <div>
-            <h2>{props.conversationDetails?.kind === "direct" ? props.conversationDetails.directPeer?.username ?? props.conversationDetails.name : `# ${props.conversationDetails?.name ?? "Choose a conversation"}`}</h2>
-            <p>{describeConversation(props.conversationDetails, props.selectedSummary)}</p>
-          </div>
+          <span>{describeConversation(props.conversationDetails, props.selectedSummary)}</span>
         </div>
-        <div className="meta meta-stack">
-          {props.conversationDetails?.kind === "direct" && props.conversationDetails.directPeer && (
-            <span className={`presence-pill ${props.conversationDetails.directPeer.presence}`}>
-              {props.conversationDetails.directPeer.presence}
-            </span>
-          )}
-          {props.conversationDetails?.kind === "room" && <span>{props.conversationDetails.memberCount} members</span>}
-          <button className="ghost" onClick={props.onOpenDetails} disabled={!props.selectedConversationId}>
-            Details
-          </button>
-          {props.canManageRoom && (
-            <button className="ghost" onClick={props.onOpenManageRoom}>Room settings</button>
-          )}
-          {props.conversationDetails?.kind === "room" && (
+        {props.conversationDetails?.kind === "room" && (
+          <div className="oldschool-chat-actions">
             <button
-              className="ghost danger-text"
+              type="button"
+              className="oldschool-button oldschool-danger-button"
               onClick={async () => {
                 if (!window.confirm("Leave this room?")) {
                   return;
@@ -168,12 +170,12 @@ export function ChatPanel(props: ChatPanelProps) {
             >
               Leave
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       <section
-        className="messages"
+        className="oldschool-message-log oldschool-inset"
         ref={messagesRef}
         onScroll={(event) => {
           const target = event.currentTarget;
@@ -181,22 +183,22 @@ export function ChatPanel(props: ChatPanelProps) {
         }}
       >
         {props.messages?.nextCursor && props.selectedConversationId && (
-          <button className="ghost older" onClick={() => void loadOlderMessages()}>
+          <button type="button" className="oldschool-button older" onClick={() => void loadOlderMessages()}>
             {isLoadingOlder ? "Loading..." : "Load older messages"}
           </button>
         )}
 
         {!props.selectedConversationId && (
-          <div className="empty-chat-state">
-            <h3>Select chat</h3>
-            <p>Open thread from list, then chat takes whole focus.</p>
+          <div className="oldschool-empty-chat">
+            <strong>Select chat</strong>
+            <span>Open thread from left pane, then log appears here.</span>
           </div>
         )}
 
         {props.selectedConversationId && !props.messages?.items.length && (
-          <div className="empty-chat-state">
-            <h3>No messages yet</h3>
-            <p>Drop first message and this pane becomes live.</p>
+          <div className="oldschool-empty-chat">
+            <strong>No messages yet</strong>
+            <span>Drop first line and this room becomes live.</span>
           </div>
         )}
 
@@ -208,110 +210,121 @@ export function ChatPanel(props: ChatPanelProps) {
             && previousMessage.author.id === message.author.id
             && new Date(message.createdAt).getTime() - new Date(previousMessage.createdAt).getTime() < 5 * 60_000
           );
+          const tone = isOwn ? "self" : message.author.username === "server" ? "system" : "peer";
 
           return (
-            <article key={message.id} className={`message-card ${isOwn ? "own" : "peer"} ${isGrouped ? "grouped" : ""}`}>
-              {!isGrouped && (
-                <header>
-                  <div className="message-author">
-                    <div className={`message-avatar ${message.author.presence}`} aria-hidden="true">
-                      {message.author.username.slice(0, 1).toUpperCase()}
-                    </div>
-                    <div>
-                      <strong>{message.author.username}</strong>
-                      <small>{message.author.presence}</small>
-                    </div>
+            <article key={message.id} className={`oldschool-log-row ${tone} ${isGrouped ? "grouped" : ""}`}>
+              <span className="oldschool-log-time">[{formatLogTime(message.createdAt)}]</span>
+              <span className="oldschool-log-author">{authorPrefix(message.author.username)}</span>
+              <div className="oldschool-log-content">
+                {message.replyTo && (
+                  <div className="oldschool-inline-quote">
+                    <strong>{message.replyTo.authorUsername}</strong>
+                    <span>{message.replyTo.body ?? "Attachment"}</span>
                   </div>
-                  <div className="message-meta">
-                    <span>{formatTimestamp(message.createdAt)}</span>
-                    {message.isEdited && <em>edited</em>}
-                  </div>
-                </header>
-              )}
-              {message.replyTo && (
-                <blockquote>
-                  <strong>{message.replyTo.authorUsername}</strong>
-                  <span>{message.replyTo.body ?? "Attachment"}</span>
-                </blockquote>
-              )}
-              {editingMessageId === message.id ? (
-                <form
-                  className="stack"
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    try {
-                      await props.onEditMessage(message.id, editingBody);
-                      setEditingMessageId(null);
-                      setEditingBody("");
-                    } catch {
-                      return;
-                    }
-                  }}
-                >
-                  <textarea value={editingBody} rows={3} onChange={(event) => setEditingBody(event.target.value)} />
-                  <div className="inline-actions">
-                    <button type="submit" className="primary" disabled={!editingBody.trim()}>Save</button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
+                )}
+                {editingMessageId === message.id ? (
+                  <form
+                    className="oldschool-inline-editor"
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      try {
+                        await props.onEditMessage(message.id, editingBody);
                         setEditingMessageId(null);
                         setEditingBody("");
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  {message.body && <p className="message-body">{message.body}</p>}
-                  {message.attachments.length > 0 && (
-                    <div className="attachment-strip">
-                      {message.attachments.map((attachment: ChatMessage["attachments"][number]) => (
-                        <a key={attachment.id} className="attachment-chip" href={attachment.downloadUrl} target="_blank" rel="noreferrer">
-                          <span>{attachment.kind === "image" ? "Image" : "File"}</span>
-                          <strong>{attachment.originalName}</strong>
-                        </a>
-                      ))}
+                      } catch {
+                        return;
+                      }
+                    }}
+                  >
+                    <textarea value={editingBody} rows={3} onChange={(event) => setEditingBody(event.target.value)} />
+                    <div className="oldschool-log-actions">
+                      <button type="submit" className="oldschool-button active" disabled={!editingBody.trim()}>Save</button>
+                      <button
+                        type="button"
+                        className="oldschool-button"
+                        onClick={() => {
+                          setEditingMessageId(null);
+                          setEditingBody("");
+                        }}
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  )}
-                </>
-              )}
-              <div className="inline-actions message-actions">
-                <button className="inline-action" onClick={() => props.setReplyToMessageId(message.id)}>Reply</button>
-                {message.author.id === props.meUserId && (
+                  </form>
+                ) : (
                   <>
-                    <button
-                      className="inline-action"
-                      onClick={() => {
-                        setEditingMessageId(message.id);
-                        setEditingBody(message.body ?? "");
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="inline-action danger-text"
-                      onClick={async () => {
-                        if (!window.confirm("Delete this message?")) {
-                          return;
-                        }
-                        try {
-                          await props.onDeleteMessage(message.id);
-                          if (editingMessageId === message.id) {
-                            setEditingMessageId(null);
-                            setEditingBody("");
-                          }
-                        } catch {
-                          return;
-                        }
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {message.body && <span className="oldschool-log-text">{message.body}</span>}
+                    {message.attachments.length > 0 && (
+                      <div className="oldschool-attachment-stack">
+                        {message.attachments.map((attachment: ChatMessage["attachments"][number]) => (
+                          attachment.kind === "image" ? (
+                            <a
+                              key={attachment.id}
+                              className="oldschool-inline-image-link"
+                              href={attachment.downloadUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <img className="oldschool-inline-image" src={attachment.downloadUrl} alt={attachment.originalName} />
+                            </a>
+                          ) : (
+                            <a
+                              key={attachment.id}
+                              className="oldschool-file-chip oldschool-bevel"
+                              href={attachment.downloadUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <strong>{attachment.originalName}</strong>
+                              <span>Open</span>
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
+                <div className="oldschool-log-actions">
+                  {message.isEdited && <span className="oldschool-log-flag">edited</span>}
+                  <button type="button" className="oldschool-inline-button" onClick={() => props.setReplyToMessageId(message.id)}>Reply</button>
+                  {(message.author.id === props.meUserId || props.canManageRoom) && (
+                    <>
+                      {message.author.id === props.meUserId && (
+                        <button
+                          type="button"
+                          className="oldschool-inline-button"
+                          onClick={() => {
+                            setEditingMessageId(message.id);
+                            setEditingBody(message.body ?? "");
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="oldschool-inline-button danger-text"
+                        onClick={async () => {
+                          if (!window.confirm("Delete this message?")) {
+                            return;
+                          }
+                          try {
+                            await props.onDeleteMessage(message.id);
+                            if (editingMessageId === message.id) {
+                              setEditingMessageId(null);
+                              setEditingBody("");
+                            }
+                          } catch {
+                            return;
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </article>
           );
@@ -319,7 +332,7 @@ export function ChatPanel(props: ChatPanelProps) {
       </section>
 
       <form
-        className="composer"
+        className="oldschool-composer oldschool-bevel"
         onSubmit={(event) => {
           event.preventDefault();
           void handleSend();
@@ -332,16 +345,38 @@ export function ChatPanel(props: ChatPanelProps) {
         }}
       >
         {replyTarget && (
-          <div className="reply-banner">
+          <div className="oldschool-reply-banner oldschool-inset">
             <div>
               <strong>Replying to {replyTarget.author.username}</strong>
               <span>{replyTarget.body ?? "Attachment only message"}</span>
             </div>
-            <button type="button" className="ghost" onClick={() => props.setReplyToMessageId(null)}>x</button>
+            <button type="button" className="oldschool-button" onClick={() => props.setReplyToMessageId(null)}>X</button>
           </div>
         )}
-        <div className="composer-row">
-          <label className="ghost file-picker">
+        <div className="oldschool-composer-row">
+          <span className="oldschool-composer-label">Message</span>
+          <textarea
+            ref={composerRef}
+            className="oldschool-grow live-message-input"
+            name="body"
+            placeholder=""
+            rows={3}
+            value={draftBody}
+            disabled={!props.selectedConversationId}
+            onChange={(event) => setDraftBody(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void handleSend();
+              }
+            }}
+          />
+          <button type="submit" className="oldschool-button active" disabled={!canSend}>
+            {props.isSending ? "Sending..." : "Send"}
+          </button>
+        </div>
+        <div className="oldschool-composer-row small">
+          <label className="oldschool-button oldschool-file-picker">
             Attach
             <input
               type="file"
@@ -356,31 +391,26 @@ export function ChatPanel(props: ChatPanelProps) {
               }}
             />
           </label>
-          <textarea
-            ref={composerRef}
-            name="body"
-            placeholder={props.selectedConversationId ? "Write message" : "Select chat first"}
-            rows={2}
-            value={draftBody}
-            disabled={!props.selectedConversationId}
-            onChange={(event) => setDraftBody(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-          />
-          <button type="submit" className="primary" disabled={!canSend}>
-            {props.isSending ? "Sending..." : "Send"}
-          </button>
+          {props.replyToMessageId ? (
+            <button type="button" className="oldschool-button" onClick={() => props.setReplyToMessageId(null)}>Cancel reply</button>
+          ) : (
+            <span className="oldschool-status-text">Use Reply on line to quote exact message.</span>
+          )}
+          <span className="oldschool-status-text">
+            {participants.length > 0 ? `${participants.length} visible in member list.` : "No active participant list."}
+          </span>
         </div>
         {props.uploadedAttachments.length > 0 && (
-          <div className="attachment-strip">
+          <div className="oldschool-uploaded-list">
             {props.uploadedAttachments.map((attachment) => (
-              <button key={attachment.id} type="button" className="ghost attachment-chip pending" onClick={() => props.onRemoveAttachment(attachment.id)}>
-                <span>Ready</span>
+              <button
+                key={attachment.id}
+                type="button"
+                className="oldschool-file-chip oldschool-bevel"
+                onClick={() => props.onRemoveAttachment(attachment.id)}
+              >
                 <strong>{attachment.originalName}</strong>
+                <span>Remove</span>
               </button>
             ))}
           </div>
@@ -417,12 +447,14 @@ function describeConversation(
   return "Thread ready.";
 }
 
-function formatTimestamp(value: string) {
-  const date = new Date(value);
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
+function formatLogTime(value: string) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit"
+  });
+}
 
-  return sameDay
-    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+function authorPrefix(username: string) {
+  return `<${username}>`;
 }

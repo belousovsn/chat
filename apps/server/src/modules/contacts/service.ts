@@ -42,7 +42,7 @@ export const listContacts = async (auth: AuthSession) => {
     join users req on req.id = fr.requester_id
     join users recv on recv.id = fr.receiver_id
     where fr.status = 'pending'
-      and (fr.requester_id = ${auth.user.id} or fr.receiver_id = ${auth.user.id})
+      and fr.receiver_id = ${auth.user.id}
     order by fr.created_at desc
   `);
 

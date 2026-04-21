@@ -1,0 +1,32 @@
+{
+  "name": "local-design-tools",
+  "interface": {
+    "displayName": "Local Design Tools"
+  },
+  "plugins": [
+    {
+      "name": "figma",
+      "source": {
+        "source": "local",
+        "path": "./plugins/figma"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Design"
+    },
+    {
+      "name": "paper",
+      "source": {
+        "source": "local",
+        "path": "./plugins/paper"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Design"
+    }
+  ]
+}

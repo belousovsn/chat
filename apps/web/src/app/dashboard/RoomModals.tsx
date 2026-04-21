@@ -7,9 +7,9 @@ export function CreateRoomModal(props: {
   onCreate: (input: { description: string; name: string; visibility: "public" | "private" }) => void;
 }) {
   return (
-    <div className="modal-backdrop">
+    <div className="oldschool-overlay live-floating-window room-window">
       <form
-        className="modal-card stack"
+        className="oldschool-dialog oldschool-bevel"
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
@@ -20,18 +20,34 @@ export function CreateRoomModal(props: {
           });
         }}
       >
-        <h3>Create room</h3>
-        <label>Name<input name="name" required /></label>
-        <label>Description<input name="description" /></label>
-        <label>Visibility
-          <select name="visibility" defaultValue="public">
-            <option value="public">Public</option>
-            <option value="private">Private</option>
-          </select>
-        </label>
-        <div className="modal-actions">
-          <button type="button" className="ghost" onClick={props.onClose}>Cancel</button>
-          <button type="submit" className="primary">Create</button>
+        <div className="oldschool-titlebar">
+          <span>Room Window</span>
+          <button type="button" className="oldschool-titlebar-close" onClick={props.onClose}>X</button>
+        </div>
+
+        <div className="oldschool-dialog-body">
+          <section className="oldschool-group oldschool-bevel">
+            <div className="oldschool-group-title">Create room</div>
+            <label className="oldschool-field">
+              <span>Name</span>
+              <input name="name" required />
+            </label>
+            <label className="oldschool-field">
+              <span>Description</span>
+              <input name="description" />
+            </label>
+            <label className="oldschool-field">
+              <span>Visibility</span>
+              <select name="visibility" defaultValue="public">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+              </select>
+            </label>
+            <div className="oldschool-inline-form">
+              <button type="submit" className="oldschool-button active">Create</button>
+              <button type="button" className="oldschool-button" onClick={props.onClose}>Close</button>
+            </div>
+          </section>
         </div>
       </form>
     </div>
@@ -45,6 +61,7 @@ export function ManageRoomModal(props: {
   roomId: string;
 }) {
   const [bans, setBans] = useState<RoomBan[]>([]);
+  const [inviteUsername, setInviteUsername] = useState("");
   const [status, setStatus] = useState("");
 
   useEffect(() => {
@@ -52,88 +69,144 @@ export function ManageRoomModal(props: {
   }, [props.roomId]);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card stack">
-        <h3>Manage room</h3>
-        <form
-          className="stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            api.updateRoom(props.roomId, {
-              name: String(form.get("name")),
-              description: String(form.get("description") || ""),
-              visibility: String(form.get("visibility")) as "public" | "private"
-            }).then(props.onRefresh).catch((error: Error) => setStatus(error.message));
-          }}
-        >
-          <label>Name<input name="name" defaultValue={props.room.name} /></label>
-          <label>Description<input name="description" defaultValue={props.room.description ?? ""} /></label>
-          <label>Visibility
-            <select name="visibility" defaultValue={props.room.visibility ?? "public"}>
-              <option value="public">Public</option>
-              <option value="private">Private</option>
-            </select>
-          </label>
-          <button type="submit" className="primary">Save changes</button>
-        </form>
-
-        <form
-          className="stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            api.inviteToRoom(props.roomId, String(form.get("username"))).then(() => {
-              setStatus("Invite sent");
-              event.currentTarget.reset();
-            }).catch((error: Error) => setStatus(error.message));
-          }}
-        >
-          <label>Invite by username<input name="username" /></label>
-          <button type="submit" className="ghost">Send invite</button>
-        </form>
-
-        <div className="public-list">
-          {props.room.members.map((member) => (
-            <div key={member.userId} className="mini-row">
-              <div>
-                <strong>{member.username}</strong>
-                <small>{member.role}</small>
-              </div>
-              <div className="inline-actions">
-                {member.role === "member" && <button className="ghost" onClick={() => api.makeAdmin(props.roomId, member.userId).then(props.onRefresh)}>Make admin</button>}
-                {member.role === "admin" && <button className="ghost" onClick={() => api.removeAdmin(props.roomId, member.userId).then(props.onRefresh)}>Remove admin</button>}
-                {member.role !== "owner" && <button className="ghost" onClick={() => api.removeMember(props.roomId, member.userId).then(props.onRefresh)}>Ban</button>}
-              </div>
-            </div>
-          ))}
+    <div className="oldschool-overlay live-floating-window room-window">
+      <div className="oldschool-dialog oldschool-bevel">
+        <div className="oldschool-titlebar">
+          <span>Manage room - #{props.room.name}</span>
+          <button type="button" className="oldschool-titlebar-close" onClick={props.onClose}>X</button>
         </div>
 
-        <div className="public-list">
-          {bans.map((ban) => (
-            <div key={ban.user_id} className="mini-row">
-              <div>
-                <strong>{ban.username}</strong>
-                <small>banned by {ban.banned_by_username}</small>
-              </div>
-              <button className="ghost" onClick={() => api.unbanUser(props.roomId, ban.user_id).then(() => api.roomBans(props.roomId).then(setBans))}>Unban</button>
-            </div>
-          ))}
-        </div>
-
-        <div className="modal-actions">
-          <button className="ghost" onClick={props.onClose}>Close</button>
-          <button
-            className="danger"
-            onClick={() => api.deleteRoom(props.roomId).then(() => {
-              props.onClose();
-              window.location.reload();
-            }).catch((error: Error) => setStatus(error.message))}
+        <div className="oldschool-dialog-body">
+          <form
+            className="oldschool-group oldschool-bevel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              api.updateRoom(props.roomId, {
+                name: String(form.get("name")),
+                description: String(form.get("description") || ""),
+                visibility: String(form.get("visibility")) as "public" | "private"
+              }).then(async () => {
+                setStatus("Room updated.");
+                await props.onRefresh();
+              }).catch((error: Error) => setStatus(error.message));
+            }}
           >
-            Delete room
-          </button>
+            <div className="oldschool-two-column">
+              <label className="oldschool-field">
+                <span>Name</span>
+                <input name="name" defaultValue={props.room.name} />
+              </label>
+              <label className="oldschool-field">
+                <span>Visibility</span>
+                <select name="visibility" defaultValue={props.room.visibility ?? "public"}>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+              </label>
+            </div>
+            <label className="oldschool-field">
+              <span>Description</span>
+              <input name="description" defaultValue={props.room.description ?? ""} />
+            </label>
+            <div className="oldschool-inline-form">
+              <input
+                name="username"
+                placeholder="Invite by username"
+                value={inviteUsername}
+                onChange={(event) => setInviteUsername(event.target.value)}
+              />
+              <button
+                type="button"
+                className="oldschool-button"
+                onClick={async () => {
+                  const username = inviteUsername.trim();
+                  if (!username) {
+                    return;
+                  }
+                  try {
+                    await api.inviteToRoom(props.roomId, username);
+                    setStatus("Invite sent.");
+                    setInviteUsername("");
+                  } catch (error) {
+                    setStatus((error as Error).message);
+                  }
+                }}
+              >
+                Send invite
+              </button>
+            </div>
+
+            <div className="oldschool-modal-columns">
+              <section className="oldschool-group oldschool-bevel">
+                <div className="oldschool-group-title">Members</div>
+                <div className="oldschool-list oldschool-inset compact">
+                  {props.room.members.map((member) => (
+                    <div key={member.userId} className="oldschool-session-row">
+                      <div>
+                        <strong>{member.username}</strong>
+                        <span>{member.role}</span>
+                      </div>
+                      <div className="oldschool-inline-form">
+                        {member.role === "member" && (
+                          <button type="button" className="oldschool-button" onClick={() => api.makeAdmin(props.roomId, member.userId).then(props.onRefresh)}>
+                            Promote
+                          </button>
+                        )}
+                        {member.role === "admin" && (
+                          <button type="button" className="oldschool-button" onClick={() => api.removeAdmin(props.roomId, member.userId).then(props.onRefresh)}>
+                            Demote
+                          </button>
+                        )}
+                        {member.role !== "owner" && (
+                          <button type="button" className="oldschool-button" onClick={() => api.removeMember(props.roomId, member.userId).then(props.onRefresh)}>
+                            Ban
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="oldschool-group oldschool-bevel">
+                <div className="oldschool-group-title">Bans</div>
+                <div className="oldschool-list oldschool-inset compact">
+                  {bans.length ? bans.map((ban) => (
+                    <div key={ban.user_id} className="oldschool-session-row">
+                      <div>
+                        <strong>{ban.username}</strong>
+                        <span>banned by {ban.banned_by_username}</span>
+                      </div>
+                      <button type="button" className="oldschool-button" onClick={() => api.unbanUser(props.roomId, ban.user_id).then(() => api.roomBans(props.roomId).then(setBans))}>
+                        Unban
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="oldschool-empty-note">No bans.</div>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <div className="oldschool-inline-form oldschool-modal-actions">
+              <button type="submit" className="oldschool-button active">Save changes</button>
+              <button type="button" className="oldschool-button" onClick={props.onClose}>Close</button>
+              <button
+                type="button"
+                className="oldschool-button oldschool-danger-button"
+                onClick={() => api.deleteRoom(props.roomId).then(() => {
+                  props.onClose();
+                  window.location.reload();
+                }).catch((error: Error) => setStatus(error.message))}
+              >
+                Delete room
+              </button>
+            </div>
+
+            {status && <p className="oldschool-status-text">{status}</p>}
+          </form>
         </div>
-        <p className="status-line">{status}</p>
       </div>
     </div>
   );

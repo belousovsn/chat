@@ -1,0 +1,38 @@
+{
+  "name": "paper",
+  "version": "0.1.0",
+  "description": "Run screenshot critique loops from local images, notes, and annotated references.",
+  "author": {
+    "name": "ser",
+    "email": "local@codex.invalid",
+    "url": "https://openai.com/codex"
+  },
+  "homepage": "https://openai.com/codex",
+  "repository": "https://openai.com/codex",
+  "license": "Proprietary",
+  "keywords": [
+    "screenshots",
+    "ux",
+    "review",
+    "frontend"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Paper",
+    "shortDescription": "Iterate from screenshots and critique notes",
+    "longDescription": "Use local screenshot-first workflows to compare the running app against your complaints, tighten UX structure, and patch the code quickly.",
+    "developerName": "Local",
+    "category": "Design",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://openai.com/codex",
+    "defaultPrompt": [
+      "Use these local screenshots to identify the top UX issue and fix it.",
+      "Compare current app screenshots and tell me why the flow feels wrong.",
+      "Take this annotated screenshot feedback and implement a tight UI pass."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
