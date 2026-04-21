@@ -16,6 +16,7 @@
 2026-04-20 16:10 UTC | asked: review W6/W7/W8 reports | done: verified W6 regression tests landed, W7 manual QA fixes landed, W8 repo hygiene landed, removed temporary W7 logs, and reran web/server/root verification successfully | next: run W5 Docker verification on proper machine, then do final commit/PR closeout
 2026-04-20 23:22 UTC | asked: fix frontend UX beyond visual polish | done: refactored web shell into chat-first flow with tabbed left navigator, on-demand details/people/settings drawer, mobile list/chat split, pinned composer, and proper message-scroll behavior near input; `@chat/web build` passed | next: browser QA for new navigation flow, then final closeout after Docker verification
 2026-04-21 21:35 UTC | asked: deploy app to production droplet | done: cleaned old services from new droplet, added persistent swap, deployed Docker Compose stack behind `nginx`, issued Let's Encrypt TLS, and verified public app + health endpoint on `https://chat.memdecks.com` | next: codify deploy assets in repo, wire real SMTP, backups, and continue with XMPP planning
+2026-04-21 22:45 UTC | asked: continue post-deploy plan | done: added SMTP-ready production config, production smoke script, backup/restore scripts and docs, verified `smoke:prod` against live site, and created a validated backup set on the droplet | next: wire real SMTP credentials, automate backups, add monitoring, and continue with thin-slice XMPP
 
 <hard to make LLM do proper UI without explicit details>
 ---
@@ -25,9 +26,9 @@
 - Overall project status: app deployed publicly on `https://chat.memdecks.com`. Local MVP work and first production bring-up are done.
 - What's built: auth, sessions, rooms, DMs, friends, blocking, presence, messages, uploads, moderation, smoke flow, regression tests, and coordinator docs. Monorepo split into `apps/server`, `apps/web`, `packages/shared`.
 - W1 through W8: shell split, server harden, smoke/docs, frontend polish, Docker packet, backend regressions, manual QA fixes, and repo hygiene all landed.
-- What verified: `@chat/server check` pass. `@chat/server build` pass. `@chat/server test` pass. `@chat/web check` pass. `@chat/web build` pass. Root `corepack pnpm check/build` pass. Public production deploy verified with live HTML, `/api/health`, HTTPS, and register flow on `chat.memdecks.com`.
-- What blocked: real SMTP is still not wired, backups and monitoring are not yet automated, and XMPP/Jabber support is still pending. DB-backed regression cases still depend on PostgreSQL availability in local environments.
-- What remains: commit production deploy assets to repo, wire real SMTP, add backup/restore path, add monitoring, then continue with thin-slice XMPP implementation.
+- What verified: `@chat/server check` pass. `@chat/server build` pass. `@chat/server test` pass. `@chat/web check` pass. `@chat/web build` pass. Root `corepack pnpm check/build` pass. Public production deploy verified with live HTML, `/api/health`, HTTPS, and register flow on `chat.memdecks.com`. `corepack pnpm smoke:prod` now passes against the live site, and a validated backup set exists on the droplet.
+- What blocked: real SMTP credentials are still not wired, backups are scripted but not yet automated, monitoring is not yet in place, and XMPP/Jabber support is still pending. DB-backed regression cases still depend on PostgreSQL availability in local environments.
+- What remains: apply real SMTP settings on the server, schedule recurring backups, add monitoring/alerts, then continue with thin-slice XMPP implementation.
 
 ---
 

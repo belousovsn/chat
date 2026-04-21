@@ -8,6 +8,7 @@
     "check": "corepack pnpm -r check",
     "dev": "corepack pnpm --filter @chat/server dev",
     "lint": "corepack pnpm -r lint",
+    "smoke:prod": "corepack pnpm --filter @chat/server smoke:prod",
     "test": "corepack pnpm -r test"
   }
 }

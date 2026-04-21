@@ -5,5 +5,9 @@ export const createMailer = () =>
   nodemailer.createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
-    secure: false
+    secure: config.smtpSecure,
+    auth: config.smtpUser && config.smtpPass ? {
+      user: config.smtpUser,
+      pass: config.smtpPass
+    } : undefined
   });

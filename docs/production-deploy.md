@@ -23,6 +23,7 @@ Relevant files:
 - [docker-compose.prod.yml](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docker-compose.prod.yml)
 - [.env.production.example](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/.env.production.example)
 - [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf)
+- [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md)
 
 ## One-Time Server Prep
 
@@ -46,12 +47,18 @@ The current droplet was also cleaned up from older containers and given a persis
    - `POSTGRES_PASSWORD`
    - `DATABASE_URL`
    - `MAIL_FROM`
+   - `SMTP_HOST`
+   - `SMTP_PORT`
+   - `SMTP_SECURE`
+   - `SMTP_USER`
+   - `SMTP_PASS`
 4. Keep `RUN_SEED=false` for public deployment unless you explicitly want demo users.
 
 Important:
 
 - `DATABASE_URL` and `POSTGRES_PASSWORD` must match.
-- Current default production setup still uses internal `mailpit` as SMTP target. That is fine for smoke checks, but password reset mail is not yet user-facing.
+- If you use a real SMTP provider, set both `SMTP_USER` and `SMTP_PASS` together.
+- If you leave `mailpit` in place, password reset mail is still internal only.
 
 ## Launch
 
@@ -103,6 +110,7 @@ Public checks:
 
 ```bash
 curl https://chat.memdecks.com/api/health
+SMOKE_BASE_URL=https://chat.memdecks.com corepack pnpm smoke:prod
 ```
 
 Good outcome:
@@ -110,6 +118,24 @@ Good outcome:
 - `/api/health` returns `{"ok":true,...}`
 - app HTML loads from `/`
 - register flow succeeds over HTTPS
+
+Optional authenticated smoke:
+
+```bash
+SMOKE_BASE_URL=https://chat.memdecks.com \
+SMOKE_EMAIL=admin@example.com \
+SMOKE_PASSWORD=replace-me \
+corepack pnpm smoke:prod
+```
+
+## Backups
+
+Backup and restore guidance now lives in [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md).
+
+Server-side scripts:
+
+- [ops/scripts/backup-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/backup-prod.sh)
+- [ops/scripts/restore-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/restore-prod.sh)
 
 ## Known Gaps
 

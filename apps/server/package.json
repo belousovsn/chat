@@ -11,6 +11,7 @@
     "migrate": "node ./dist/apps/server/src/db/runMigrations.js",
     "seed": "tsx src/db/seed.ts",
     "smoke": "tsx src/scripts/smoke.ts",
+    "smoke:prod": "tsx src/scripts/smoke-prod.ts",
     "start": "node dist/apps/server/src/index.js",
     "test": "tsx src/scripts/run-tests.ts"
   },
