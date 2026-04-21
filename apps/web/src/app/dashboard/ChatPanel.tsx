@@ -3,8 +3,19 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { ChatMessage } from "@chat/shared";
 import { api } from "../../lib/api";
 import type { UploadedAttachment } from "../../features/chat/store";
-import type { ConversationDetails, ConversationSummary } from "./types";
+import type { ConversationDetails, ConversationMember, ConversationSummary } from "./types";
 import { dashboardQueryKeys } from "./queryKeys";
+
+type UserMenuTarget = {
+  role?: ConversationMember["role"] | null;
+  userId: string;
+  username: string;
+};
+type ParticipantLookup = Map<string, {
+  role?: ConversationMember["role"] | null;
+  userId: string;
+  username: string;
+}>;
 
 type ChatPanelProps = {
   addUploadedAttachment: (attachment: UploadedAttachment) => void;
@@ -19,6 +30,7 @@ type ChatPanelProps = {
   onLeaveRoom: () => Promise<void>;
   onOpenDetails: () => void;
   onOpenManageRoom: () => void;
+  onOpenUserMenu: (target: UserMenuTarget, element: HTMLElement) => void;
   onRemoveAttachment: (attachmentId: string) => void;
   onSendMessage: (body: string) => Promise<boolean>;
   queryClient: QueryClient;
@@ -39,6 +51,8 @@ export function ChatPanel(props: ChatPanelProps) {
   const [editingBody, setEditingBody] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [composerError, setComposerError] = useState("");
+  const [viewerAttachment, setViewerAttachment] = useState<ChatMessage["attachments"][number] | null>(null);
   const replyTarget = useMemo(
     () => props.messages?.items.find((message) => message.id === props.replyToMessageId) ?? null,
     [props.messages?.items, props.replyToMessageId]
@@ -58,7 +72,8 @@ export function ChatPanel(props: ChatPanelProps) {
 
     if (props.conversationDetails?.kind === "direct" && props.conversationDetails.directPeer) {
       return [{
-        key: props.conversationDetails.directPeer.id,
+        role: null,
+        userId: props.conversationDetails.directPeer.id,
         presence: props.conversationDetails.directPeer.presence,
         username: props.conversationDetails.directPeer.username
       }];
@@ -66,6 +81,14 @@ export function ChatPanel(props: ChatPanelProps) {
 
     return [];
   }, [props.conversationDetails]);
+  const participantsByUserId = useMemo(
+    () => new Map(participants.map((participant) => [participant.userId, participant])),
+    [participants]
+  );
+  const participantsByUsername = useMemo(
+    () => new Map(participants.map((participant) => [participant.username, participant])),
+    [participants]
+  );
 
   useEffect(() => {
     const container = messagesRef.current;
@@ -85,8 +108,10 @@ export function ChatPanel(props: ChatPanelProps) {
 
   useEffect(() => {
     setDraftBody("");
+    setComposerError("");
     setEditingBody("");
     setEditingMessageId(null);
+    setViewerAttachment(null);
   }, [props.selectedConversationId]);
 
   const handleUpload = async (file: File) => {
@@ -94,12 +119,17 @@ export function ChatPanel(props: ChatPanelProps) {
       return;
     }
 
-    const attachment = await api.uploadAttachment(props.selectedConversationId, file);
-    props.addUploadedAttachment({
-      id: attachment.id,
-      originalName: attachment.originalName,
-      downloadUrl: attachment.downloadUrl
-    });
+    try {
+      const attachment = await api.uploadAttachment(props.selectedConversationId, file);
+      props.addUploadedAttachment({
+        id: attachment.id,
+        originalName: attachment.originalName,
+        downloadUrl: attachment.downloadUrl
+      });
+      setComposerError("");
+    } catch (error) {
+      setComposerError((error as Error).message);
+    }
   };
 
   const handleSend = async () => {
@@ -109,6 +139,7 @@ export function ChatPanel(props: ChatPanelProps) {
 
     const didSend = await props.onSendMessage(draftBody.trim());
     if (didSend) {
+      setComposerError("");
       setDraftBody("");
       window.requestAnimationFrame(() => composerRef.current?.focus());
     }
@@ -211,100 +242,61 @@ export function ChatPanel(props: ChatPanelProps) {
             && new Date(message.createdAt).getTime() - new Date(previousMessage.createdAt).getTime() < 5 * 60_000
           );
           const tone = isOwn ? "self" : message.author.username === "server" ? "system" : "peer";
+          const authorParticipant = participantsByUserId.get(message.author.id);
+          const replyAuthorParticipant = message.replyTo
+            ? participantsByUsername.get(message.replyTo.authorUsername)
+            : undefined;
 
           return (
             <article key={message.id} className={`oldschool-log-row ${tone} ${isGrouped ? "grouped" : ""}`}>
               <span className="oldschool-log-time">[{formatLogTime(message.createdAt)}]</span>
-              <span className="oldschool-log-author">{authorPrefix(message.author.username)}</span>
-              <div className="oldschool-log-content">
-                {message.replyTo && (
-                  <div className="oldschool-inline-quote">
-                    <strong>{message.replyTo.authorUsername}</strong>
-                    <span>{message.replyTo.body ?? "Attachment"}</span>
-                  </div>
-                )}
-                {editingMessageId === message.id ? (
-                  <form
-                    className="oldschool-inline-editor"
-                    onSubmit={async (event) => {
-                      event.preventDefault();
-                      try {
-                        await props.onEditMessage(message.id, editingBody);
-                        setEditingMessageId(null);
-                        setEditingBody("");
-                      } catch {
-                        return;
-                      }
-                    }}
-                  >
-                    <textarea value={editingBody} rows={3} onChange={(event) => setEditingBody(event.target.value)} />
-                    <div className="oldschool-log-actions">
-                      <button type="submit" className="oldschool-button active" disabled={!editingBody.trim()}>Save</button>
+              <div className="oldschool-log-entry">
+                <div className="oldschool-log-header">
+                  {message.author.username !== "server" && message.author.id !== props.meUserId ? (
+                    <button
+                      type="button"
+                      className="oldschool-log-author oldschool-name-button"
+                      onClick={(event) => props.onOpenUserMenu({
+                        role: authorParticipant?.role ?? null,
+                        userId: message.author.id,
+                        username: message.author.username
+                      }, event.currentTarget)}
+                    >
+                      {authorPrefix(message.author.username)}
+                    </button>
+                  ) : (
+                    <span className="oldschool-log-author">{authorPrefix(message.author.username)}</span>
+                  )}
+                  <div className="oldschool-message-actions" aria-label="Message actions">
+                    <button
+                      type="button"
+                      className="oldschool-icon-button"
+                      title="Reply"
+                      aria-label="Reply"
+                      onClick={() => props.setReplyToMessageId(message.id)}
+                    >
+                      {"\u21A9"}
+                    </button>
+                    {message.author.id === props.meUserId && (
                       <button
                         type="button"
-                        className="oldschool-button"
+                        className="oldschool-icon-button"
+                        title="Edit"
+                        aria-label="Edit"
                         onClick={() => {
-                          setEditingMessageId(null);
-                          setEditingBody("");
+                          setEditingMessageId(message.id);
+                          setEditingBody(message.body ?? "");
                         }}
                       >
-                        Cancel
+                        {"\u270E"}
                       </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    {message.body && <span className="oldschool-log-text">{message.body}</span>}
-                    {message.attachments.length > 0 && (
-                      <div className="oldschool-attachment-stack">
-                        {message.attachments.map((attachment: ChatMessage["attachments"][number]) => (
-                          attachment.kind === "image" ? (
-                            <a
-                              key={attachment.id}
-                              className="oldschool-inline-image-link"
-                              href={attachment.downloadUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <img className="oldschool-inline-image" src={attachment.downloadUrl} alt={attachment.originalName} />
-                            </a>
-                          ) : (
-                            <a
-                              key={attachment.id}
-                              className="oldschool-file-chip oldschool-bevel"
-                              href={attachment.downloadUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <strong>{attachment.originalName}</strong>
-                              <span>Open</span>
-                            </a>
-                          )
-                        ))}
-                      </div>
                     )}
-                  </>
-                )}
-                <div className="oldschool-log-actions">
-                  {message.isEdited && <span className="oldschool-log-flag">edited</span>}
-                  <button type="button" className="oldschool-inline-button" onClick={() => props.setReplyToMessageId(message.id)}>Reply</button>
-                  {(message.author.id === props.meUserId || props.canManageRoom) && (
-                    <>
-                      {message.author.id === props.meUserId && (
-                        <button
-                          type="button"
-                          className="oldschool-inline-button"
-                          onClick={() => {
-                            setEditingMessageId(message.id);
-                            setEditingBody(message.body ?? "");
-                          }}
-                        >
-                          Edit
-                        </button>
-                      )}
+                    {(message.author.id === props.meUserId || props.canManageRoom) && (
                       <button
                         type="button"
-                        className="oldschool-inline-button danger-text"
+                        className="oldschool-icon-button danger"
+                        title="Delete"
+                        aria-label="Delete"
                         onClick={async () => {
                           if (!window.confirm("Delete this message?")) {
                             return;
@@ -320,10 +312,100 @@ export function ChatPanel(props: ChatPanelProps) {
                           }
                         }}
                       >
-                        Delete
+                        {"\u00D7"}
                       </button>
+                    )}
+                  </div>
+                </div>
+                <div className="oldschool-log-content">
+                  {message.replyTo && (
+                    <div className="oldschool-inline-quote">
+                      {replyAuthorParticipant ? (
+                        <button
+                          type="button"
+                          className="oldschool-name-button"
+                          onClick={(event) => props.onOpenUserMenu({
+                            role: replyAuthorParticipant.role ?? null,
+                            userId: replyAuthorParticipant.userId,
+                            username: replyAuthorParticipant.username
+                          }, event.currentTarget)}
+                        >
+                          {message.replyTo.authorUsername}
+                        </button>
+                      ) : (
+                        <strong>{message.replyTo.authorUsername}</strong>
+                      )}
+                      <span>{message.replyTo.body ?? "Attachment"}</span>
+                    </div>
+                  )}
+                  {editingMessageId === message.id ? (
+                    <form
+                      className="oldschool-inline-editor"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        try {
+                          await props.onEditMessage(message.id, editingBody);
+                          setEditingMessageId(null);
+                          setEditingBody("");
+                        } catch {
+                          return;
+                        }
+                      }}
+                    >
+                      <textarea value={editingBody} rows={3} onChange={(event) => setEditingBody(event.target.value)} />
+                      <div className="oldschool-log-actions">
+                        <button type="submit" className="oldschool-button active" disabled={!editingBody.trim()}>Save</button>
+                        <button
+                          type="button"
+                          className="oldschool-button"
+                          onClick={() => {
+                            setEditingMessageId(null);
+                            setEditingBody("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      {message.body && (
+                        <span className="oldschool-log-text">
+                          {renderMessageBody(message, participantsByUserId, props.onOpenUserMenu)}
+                        </span>
+                      )}
+                      {message.attachments.length > 0 && (
+                        <div className="oldschool-attachment-stack">
+                          {message.attachments.map((attachment: ChatMessage["attachments"][number]) => (
+                            attachment.kind === "image" ? (
+                              <button
+                                key={attachment.id}
+                                type="button"
+                                className="oldschool-inline-image-link"
+                                onClick={() => setViewerAttachment(attachment)}
+                              >
+                                <img className="oldschool-inline-image" src={attachment.downloadUrl} alt={attachment.originalName} />
+                              </button>
+                            ) : (
+                              <a
+                                key={attachment.id}
+                                className="oldschool-file-chip oldschool-bevel"
+                                href={attachment.downloadUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <strong>{attachment.originalName}</strong>
+                                <span>Open</span>
+                              </a>
+                            )
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
+                  <div className="oldschool-log-foot">
+                    {message.isEdited && <span className="oldschool-log-flag">edited</span>}
+                  </div>
                 </div>
               </div>
             </article>
@@ -394,12 +476,13 @@ export function ChatPanel(props: ChatPanelProps) {
           {props.replyToMessageId ? (
             <button type="button" className="oldschool-button" onClick={() => props.setReplyToMessageId(null)}>Cancel reply</button>
           ) : (
-            <span className="oldschool-status-text">Use Reply on line to quote exact message.</span>
+            <span className="oldschool-status-text">Use Reply or @username to ping exact person.</span>
           )}
           <span className="oldschool-status-text">
             {participants.length > 0 ? `${participants.length} visible in member list.` : "No active participant list."}
           </span>
         </div>
+        {composerError && <div className="oldschool-inline-error">{composerError}</div>}
         {props.uploadedAttachments.length > 0 && (
           <div className="oldschool-uploaded-list">
             {props.uploadedAttachments.map((attachment) => (
@@ -416,6 +499,15 @@ export function ChatPanel(props: ChatPanelProps) {
           </div>
         )}
       </form>
+
+      {viewerAttachment?.kind === "image" && (
+        <div className="oldschool-overlay oldschool-media-viewer" onClick={() => setViewerAttachment(null)}>
+          <div className="oldschool-media-frame oldschool-bevel">
+            <img src={viewerAttachment.downloadUrl} alt={viewerAttachment.originalName} className="oldschool-media-image" />
+            <span>{viewerAttachment.originalName}</span>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -457,4 +549,55 @@ function formatLogTime(value: string) {
 
 function authorPrefix(username: string) {
   return `<${username}>`;
+}
+
+function renderMessageBody(
+  message: ChatMessage,
+  participantsByUserId: ParticipantLookup,
+  onOpenUserMenu: (target: UserMenuTarget, element: HTMLElement) => void
+) {
+  const body = message.body ?? "";
+  if (!body) {
+    return null;
+  }
+
+  if (!message.mentions.length) {
+    return body;
+  }
+
+  const parts = [];
+  let cursor = 0;
+
+  for (const mention of [...message.mentions].sort((left, right) => left.start - right.start)) {
+    if (mention.start < cursor || mention.end > body.length || mention.start >= mention.end) {
+      continue;
+    }
+
+    if (mention.start > cursor) {
+      parts.push(body.slice(cursor, mention.start));
+    }
+
+    const target = participantsByUserId.get(mention.userId) ?? {
+      role: null,
+      userId: mention.userId,
+      username: mention.username
+    };
+    parts.push(
+      <button
+        key={`${message.id}-${mention.userId}-${mention.start}`}
+        type="button"
+        className="oldschool-mention-button"
+        onClick={(event) => onOpenUserMenu(target, event.currentTarget)}
+      >
+        {body.slice(mention.start, mention.end)}
+      </button>
+    );
+    cursor = mention.end;
+  }
+
+  if (cursor < body.length) {
+    parts.push(body.slice(cursor));
+  }
+
+  return parts;
 }

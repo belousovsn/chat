@@ -65,8 +65,30 @@ export function ManageRoomModal(props: {
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    api.roomBans(props.roomId).then(setBans).catch((error: Error) => setStatus(error.message));
+    void refreshBans();
   }, [props.roomId]);
+
+  const refreshBans = async () => {
+    try {
+      setBans(await api.roomBans(props.roomId));
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
+
+  const runRoomAction = async (
+    action: () => Promise<unknown>,
+    successMessage: string,
+    refresh: () => Promise<unknown> = props.onRefresh
+  ) => {
+    try {
+      await action();
+      setStatus(successMessage);
+      await refresh();
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
 
   return (
     <div className="oldschool-overlay live-floating-window room-window">
@@ -149,17 +171,38 @@ export function ManageRoomModal(props: {
                       </div>
                       <div className="oldschool-inline-form">
                         {member.role === "member" && (
-                          <button type="button" className="oldschool-button" onClick={() => api.makeAdmin(props.roomId, member.userId).then(props.onRefresh)}>
+                          <button
+                            type="button"
+                            className="oldschool-button"
+                            onClick={() => void runRoomAction(
+                              () => api.makeAdmin(props.roomId, member.userId),
+                              `${member.username} promoted.`
+                            )}
+                          >
                             Promote
                           </button>
                         )}
                         {member.role === "admin" && (
-                          <button type="button" className="oldschool-button" onClick={() => api.removeAdmin(props.roomId, member.userId).then(props.onRefresh)}>
+                          <button
+                            type="button"
+                            className="oldschool-button"
+                            onClick={() => void runRoomAction(
+                              () => api.removeAdmin(props.roomId, member.userId),
+                              `${member.username} demoted.`
+                            )}
+                          >
                             Demote
                           </button>
                         )}
                         {member.role !== "owner" && (
-                          <button type="button" className="oldschool-button" onClick={() => api.removeMember(props.roomId, member.userId).then(props.onRefresh)}>
+                          <button
+                            type="button"
+                            className="oldschool-button"
+                            onClick={() => void runRoomAction(
+                              () => api.removeMember(props.roomId, member.userId),
+                              `${member.username} banned.`
+                            )}
+                          >
                             Ban
                           </button>
                         )}
@@ -178,7 +221,15 @@ export function ManageRoomModal(props: {
                         <strong>{ban.username}</strong>
                         <span>banned by {ban.banned_by_username}</span>
                       </div>
-                      <button type="button" className="oldschool-button" onClick={() => api.unbanUser(props.roomId, ban.user_id).then(() => api.roomBans(props.roomId).then(setBans))}>
+                      <button
+                        type="button"
+                        className="oldschool-button"
+                        onClick={() => void runRoomAction(
+                          () => api.unbanUser(props.roomId, ban.user_id),
+                          `${ban.username} unbanned.`,
+                          refreshBans
+                        )}
+                      >
                         Unban
                       </button>
                     </div>

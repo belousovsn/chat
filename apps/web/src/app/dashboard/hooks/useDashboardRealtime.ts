@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   ChatMessage,
@@ -134,7 +134,8 @@ const patchPresenceInMessages = (
 const patchUnreadInSummaries = (
   conversations: RoomSummary[] | undefined,
   conversationId: string,
-  unreadCount: number
+  unreadCount: number,
+  unreadMentionCount: number
 ): RoomSummary[] | undefined => {
   if (!conversations) {
     return conversations;
@@ -142,13 +143,15 @@ const patchUnreadInSummaries = (
 
   return conversations.map((conversation) => (
     conversation.id === conversationId
-      ? { ...conversation, unreadCount }
+      ? { ...conversation, unreadCount, unreadMentionCount }
       : conversation
   ));
 };
 
 export function useDashboardRealtime(args: UseDashboardRealtimeArgs) {
   const [activityTick, setActivityTick] = useState(0);
+  const activityTimestampRef = useRef(Date.now());
+  const tabIdRef = useRef(typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `tab-${Date.now()}`);
   const { latestMessageId, queryClient, selectedConversationId } = args;
 
   useEffect(() => {
@@ -206,7 +209,12 @@ export function useDashboardRealtime(args: UseDashboardRealtimeArgs) {
         case "unread.updated": {
           queryClient.setQueryData<RoomSummary[] | undefined>(
             dashboardQueryKeys.conversations(),
-            (conversations) => patchUnreadInSummaries(conversations, event.payload.conversationId, event.payload.unreadCount)
+            (conversations) => patchUnreadInSummaries(
+              conversations,
+              event.payload.conversationId,
+              event.payload.unreadCount,
+              event.payload.unreadMentionCount
+            )
           );
           break;
         }
@@ -227,24 +235,39 @@ export function useDashboardRealtime(args: UseDashboardRealtimeArgs) {
 
   useEffect(() => {
     const socket = getSocket();
-    const sendActivity = () => {
+    const sendActivity = (hasInteraction: boolean) => {
+      if (hasInteraction) {
+        activityTimestampRef.current = Date.now();
+      }
+
       socket.emit("presence.activity", {
         active: document.visibilityState === "visible",
-        tabId: "main",
-        timestamp: new Date().toISOString()
+        tabId: tabIdRef.current,
+        timestamp: new Date(activityTimestampRef.current).toISOString()
       });
       setActivityTick((value) => value + 1);
     };
 
-    sendActivity();
-    const interval = window.setInterval(sendActivity, 15_000);
-    window.addEventListener("focus", sendActivity);
-    window.addEventListener("visibilitychange", sendActivity);
+    const pingPresence = () => sendActivity(false);
+    const noteInteraction = () => sendActivity(true);
+
+    sendActivity(true);
+    const interval = window.setInterval(pingPresence, 15_000);
+    window.addEventListener("focus", pingPresence);
+    document.addEventListener("visibilitychange", pingPresence);
+    window.addEventListener("pointerdown", noteInteraction);
+    window.addEventListener("keydown", noteInteraction);
+    window.addEventListener("scroll", noteInteraction, true);
+    window.addEventListener("touchstart", noteInteraction);
 
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener("focus", sendActivity);
-      window.removeEventListener("visibilitychange", sendActivity);
+      window.removeEventListener("focus", pingPresence);
+      document.removeEventListener("visibilitychange", pingPresence);
+      window.removeEventListener("pointerdown", noteInteraction);
+      window.removeEventListener("keydown", noteInteraction);
+      window.removeEventListener("scroll", noteInteraction, true);
+      window.removeEventListener("touchstart", noteInteraction);
     };
   }, []);
 
@@ -253,8 +276,10 @@ export function useDashboardRealtime(args: UseDashboardRealtimeArgs) {
       return;
     }
 
-    void api.markRead(selectedConversationId, { messageId: latestMessageId }).catch(() => undefined);
-  }, [latestMessageId, selectedConversationId]);
+    void api.markRead(selectedConversationId, { messageId: latestMessageId })
+      .then(() => queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() }))
+      .catch(() => undefined);
+  }, [latestMessageId, queryClient, selectedConversationId]);
 
   return activityTick;
 }

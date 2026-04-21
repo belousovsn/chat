@@ -64,7 +64,11 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const params = request.params as { id: string };
       const input = markReadInputSchema.parse(request.body);
       await markConversationRead(auth, params.id, input.messageId);
-      app.realtime.emitUserUpdate(auth.user.id, "unread.updated", { conversationId: params.id, unreadCount: 0 });
+      app.realtime.emitUserUpdate(auth.user.id, "unread.updated", {
+        conversationId: params.id,
+        unreadCount: 0,
+        unreadMentionCount: 0
+      });
       return { ok: true };
     } catch (error) {
       return sendError(reply, error);

@@ -1146,6 +1146,17 @@ label {
   background: #9f0000;
 }
 
+.oldschool-room-badge.mention {
+  background: #0b4ea2;
+}
+
+.oldschool-room-indicators {
+  display: inline-flex;
+  gap: 0.25rem;
+  justify-self: end;
+  align-items: flex-start;
+}
+
 .oldschool-sidebar-footer,
 .oldschool-chat-header {
   padding: 0.45rem 0.55rem;
@@ -1233,7 +1244,7 @@ label {
   color: #0d6d3c;
 }
 
-.oldschool-member-row.away {
+.oldschool-member-row.afk {
   color: #8b5d00;
 }
 
@@ -1384,7 +1395,7 @@ label {
 .live-chat-page select,
 .live-chat-page textarea {
   border-radius: 0;
-  transition: none;
+  transition: transform 45ms ease, box-shadow 45ms ease;
 }
 
 .live-chat-page button:hover:not(:disabled),
@@ -1489,7 +1500,31 @@ label {
 }
 
 .oldschool-log-row {
-  padding-bottom: 0.36rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem 0.55rem;
+  align-items: start;
+  padding: 0.28rem 0.35rem;
+  border: 1px solid transparent;
+}
+
+.oldschool-log-row:hover,
+.oldschool-log-row:focus-within {
+  background: #f1f6ff;
+  border-color: #9ab0d9;
+}
+
+.oldschool-log-entry {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.oldschool-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
 .oldschool-log-content {
@@ -1499,9 +1534,66 @@ label {
   overflow: hidden;
 }
 
+.oldschool-log-foot {
+  min-height: 0.9rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .oldschool-log-text {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.oldschool-name-button,
+.oldschool-mention-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.oldschool-name-button {
+  color: #0b4ea2;
+  text-decoration: underline;
+}
+
+.oldschool-mention-button {
+  font-weight: 700;
+  color: #0b3f8f;
+}
+
+.oldschool-message-actions {
+  display: flex;
+  gap: 0.18rem;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.oldschool-log-row:hover .oldschool-message-actions,
+.oldschool-log-row:focus-within .oldschool-message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.oldschool-icon-button {
+  width: 1.55rem;
+  height: 1.45rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 2px solid;
+  border-color: #f9f9f9 #4f4f4f #4f4f4f #f9f9f9;
+  color: #111;
+  background: #c0c0c0;
+  box-shadow: 1px 1px 0 #7a7a7a;
+}
+
+.oldschool-icon-button.danger {
+  color: #fff;
+  background: #9f2d2d;
 }
 
 .oldschool-inline-quote {
@@ -1595,6 +1687,11 @@ label {
 .oldschool-inline-image-link {
   display: block;
   max-width: min(100%, 320px);
+  padding: 0;
+  border: 1px solid #8d8d8d;
+  background: #fff;
+  box-shadow: none;
+  cursor: zoom-in;
 }
 
 .oldschool-inline-image {
@@ -1632,7 +1729,11 @@ label {
 }
 
 .oldschool-member-row {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1.2rem minmax(0, 1fr) auto;
+  gap: 0.18rem 0.4rem;
+  align-items: center;
+  padding: 0.14rem 0.22rem;
 }
 
 .oldschool-member-copy {
@@ -1642,8 +1743,28 @@ label {
   flex: 1 1 auto;
 }
 
+.oldschool-member-identity {
+  width: 100%;
+  padding: 0.18rem 0.24rem;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.oldschool-member-identity:hover,
+.oldschool-member-identity:focus-visible,
+.oldschool-name-button:hover,
+.oldschool-mention-button:hover {
+  background: #e7eefb;
+}
+
 .oldschool-member-copy span {
   font-size: 0.82rem;
+}
+
+.oldschool-member-role {
+  min-width: 0;
 }
 
 .oldschool-member-action {
@@ -1700,6 +1821,13 @@ label {
   background: #c8bbbb;
 }
 
+.oldschool-inline-error {
+  padding: 0.28rem 0.42rem;
+  color: #7c1818;
+  border: 1px solid #b98989;
+  background: #f3dddd;
+}
+
 .oldschool-modal-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1713,6 +1841,72 @@ label {
 .live-chat-statusbar {
   grid-template-columns: 1fr auto auto;
   align-items: center;
+}
+
+.oldschool-context-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 188px;
+  padding: 0.22rem;
+  display: grid;
+  gap: 0.16rem;
+  background: #c0c0c0;
+}
+
+.oldschool-context-title {
+  padding: 0.18rem 0.3rem 0.24rem;
+  font-weight: 700;
+  color: #0b3f8f;
+  border-bottom: 1px solid #7f7f7f;
+}
+
+.oldschool-context-action {
+  width: 100%;
+  padding: 0.24rem 0.4rem;
+  text-align: left;
+}
+
+.oldschool-context-action.danger {
+  color: #fff;
+  background: #9f2d2d;
+}
+
+.oldschool-media-viewer {
+  z-index: 75;
+  cursor: zoom-out;
+}
+
+.oldschool-media-frame {
+  width: min(72vw, 860px);
+  max-width: calc(100vw - 2rem);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  background: #d4d0c8;
+}
+
+.oldschool-media-image {
+  width: 100%;
+  max-height: min(68vh, 760px);
+  object-fit: contain;
+  background: #fff;
+}
+
+.live-chat-page .oldschool-button:active:not(:disabled),
+.live-chat-page .oldschool-mini-tab:active:not(:disabled),
+.live-chat-page .oldschool-titlebar-close:active:not(:disabled),
+.live-chat-page .oldschool-public-action:active:not(:disabled),
+.live-chat-page .oldschool-member-action:active:not(:disabled),
+.live-chat-page .oldschool-context-action:active:not(:disabled),
+.live-chat-page .oldschool-icon-button:active:not(:disabled),
+.live-chat-page .oldschool-friend-request-bar:active:not(:disabled),
+.live-chat-page .oldschool-member-identity:active:not(:disabled),
+.live-chat-page .oldschool-inline-image-link:active:not(:disabled),
+.live-chat-page .oldschool-menu-item:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+  border-color: #4f4f4f #f9f9f9 #f9f9f9 #4f4f4f;
 }
 
 @media (max-width: 1100px) {
@@ -1789,7 +1983,7 @@ label {
   }
 
   .oldschool-member-row {
-    flex-wrap: wrap;
+    grid-template-columns: 1.2rem minmax(0, 1fr);
   }
 
   .live-chat-statusbar {

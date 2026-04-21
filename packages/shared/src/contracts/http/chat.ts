@@ -24,6 +24,13 @@ const messageReplySchema = z.object({
   body: z.string().nullable()
 });
 
+const messageMentionSchema = z.object({
+  userId: z.string().uuid(),
+  username: z.string(),
+  start: z.number().int().nonnegative(),
+  end: z.number().int().nonnegative()
+});
+
 export const contactFriendSchema = z.object({
   id: z.string().uuid(),
   username: z.string(),
@@ -78,6 +85,7 @@ export const roomSummarySchema = z.object({
   visibility: z.enum(["public", "private"]).nullable(),
   ownerId: z.string().uuid().nullable(),
   unreadCount: z.number().int().nonnegative(),
+  unreadMentionCount: z.number().int().nonnegative(),
   memberCount: z.number().int().nonnegative(),
   lastMessageAt: z.string().nullable(),
   isFrozen: z.boolean(),
@@ -101,6 +109,7 @@ export const chatMessageSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   replyTo: messageReplySchema.nullable(),
+  mentions: z.array(messageMentionSchema),
   attachments: z.array(attachmentSchema)
 });
 
@@ -152,6 +161,7 @@ export type PublicRoom = z.infer<typeof publicRoomSchema>;
 export type RoomBan = z.infer<typeof roomBanSchema>;
 export type RoomSummary = z.infer<typeof roomSummarySchema>;
 export type RoomDetails = z.infer<typeof roomDetailsSchema>;
+export type MessageMention = z.infer<typeof messageMentionSchema>;
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 export type PaginatedMessages = z.infer<typeof paginatedMessagesSchema>;
 export type CreateRoomInput = z.infer<typeof createRoomInputSchema>;

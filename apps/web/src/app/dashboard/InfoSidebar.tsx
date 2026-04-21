@@ -16,7 +16,7 @@ type InfoSidebarProps = {
   onChangeMode: (mode: UtilityPanelMode) => void;
   onChangePassword: (input: { currentPassword: string; newPassword: string }, onSuccess: () => void) => void;
   onClose: () => void;
-  onCreateDirect: (userId: string) => void;
+  onCreateDirect: (userId: string, username: string) => Promise<void> | void;
   onDeleteAccount: () => void;
   onRemoveFriend: (userId: string) => void;
   onRefreshContacts: () => void;
@@ -30,6 +30,7 @@ type InfoSidebarProps = {
 export function InfoSidebar(props: InfoSidebarProps) {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [friendSearch, setFriendSearch] = useState("");
+  const [socialError, setSocialError] = useState("");
   const [socialTab, setSocialTab] = useState<SocialTab>("requests");
   const filteredFriends = useMemo(() => {
     const search = friendSearch.trim().toLowerCase();
@@ -61,27 +62,37 @@ export function InfoSidebar(props: InfoSidebarProps) {
             <button
               type="button"
               className={clsx("oldschool-mini-tab", { active: socialTab === "requests" })}
-              onClick={() => setSocialTab("requests")}
+              onClick={() => {
+                setSocialError("");
+                setSocialTab("requests");
+              }}
             >
               Requests
             </button>
             <button
               type="button"
               className={clsx("oldschool-mini-tab", { active: socialTab === "friends" })}
-              onClick={() => setSocialTab("friends")}
+              onClick={() => {
+                setSocialError("");
+                setSocialTab("friends");
+              }}
             >
               Friends
             </button>
             <button
               type="button"
               className={clsx("oldschool-mini-tab", { active: socialTab === "add" })}
-              onClick={() => setSocialTab("add")}
+              onClick={() => {
+                setSocialError("");
+                setSocialTab("add");
+              }}
             >
               Add friend
             </button>
           </div>
 
           <div className="oldschool-dialog-body">
+            {socialError && <div className="oldschool-inline-error">{socialError}</div>}
             {socialTab === "requests" && (
               <section className="oldschool-group oldschool-bevel">
                 <div className="oldschool-inline-form">
@@ -128,7 +139,16 @@ export function InfoSidebar(props: InfoSidebarProps) {
                         <span>{friend.presence}</span>
                       </div>
                       <div className="oldschool-inline-form">
-                        <button type="button" className="oldschool-button" onClick={() => props.onCreateDirect(friend.id)}>Chat</button>
+                        <button
+                          type="button"
+                          className="oldschool-button"
+                          onClick={() => {
+                            setSocialError("");
+                            void props.onCreateDirect(friend.id, friend.username);
+                          }}
+                        >
+                          Chat
+                        </button>
                         <button type="button" className="oldschool-button" onClick={() => props.onRemoveFriend(friend.id)}>Remove</button>
                         <button type="button" className="oldschool-button oldschool-danger-button" onClick={() => props.onBlockUser(friend.id)}>Block</button>
                       </div>
@@ -151,8 +171,11 @@ export function InfoSidebar(props: InfoSidebarProps) {
                       username: String(form.get("username")),
                       message: String(form.get("message") || "")
                     }, () => {
+                      setSocialError("");
                       event.currentTarget.reset();
-                    }, () => undefined);
+                    }, (error) => {
+                      setSocialError(error.message);
+                    });
                   }}
                 >
                   <label className="oldschool-field">

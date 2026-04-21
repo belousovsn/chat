@@ -7,12 +7,21 @@ import { ConversationSidebar } from "./ConversationSidebar";
 import { DashboardToolbar } from "./DashboardToolbar";
 import { InfoSidebar, type UtilityPanelMode } from "./InfoSidebar";
 import { CreateRoomModal, ManageRoomModal } from "./RoomModals";
+import type { ConversationMember } from "./types";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { useDashboardRealtime } from "./hooks/useDashboardRealtime";
 import { useRoomModalState } from "./hooks/useRoomModalState";
 import { dashboardQueryKeys } from "./queryKeys";
 
 type MobileView = "sidebar" | "chat";
+type UserMenuActionId = "add" | "ban" | "chat" | "demote" | "poke" | "promote";
+type UserMenuState = {
+  role: ConversationMember["role"] | null;
+  userId: string;
+  username: string;
+  x: number;
+  y: number;
+};
 
 export function Dashboard() {
   const queryClient = useQueryClient();
@@ -30,6 +39,7 @@ export function Dashboard() {
   const [publicSearch, setPublicSearch] = useState("");
   const [status, setStatus] = useState("");
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanelMode | null>(null);
+  const [userMenu, setUserMenu] = useState<UserMenuState | null>(null);
   const roomModals = useRoomModalState();
 
   const {
@@ -62,6 +72,10 @@ export function Dashboard() {
     setMobileView(selectedConversationId ? "chat" : "sidebar");
   }, [selectedConversationId]);
 
+  useEffect(() => {
+    setUserMenu(null);
+  }, [selectedConversationId]);
+
   const selectedConversationTitle = useMemo(() => {
     if (conversationDetails.data?.kind === "direct") {
       return conversationDetails.data.directPeer?.username ?? conversationDetails.data.name;
@@ -73,6 +87,16 @@ export function Dashboard() {
     () => new Set((contacts.data?.friends ?? []).map((friend) => friend.id)),
     [contacts.data?.friends]
   );
+  const directPeer = conversationDetails.data?.kind === "direct"
+    ? conversationDetails.data.directPeer
+    : null;
+  const roomMembership = useMemo(
+    () => conversationDetails.data?.kind === "room"
+      ? conversationDetails.data.members.find((member) => member.userId === me.data?.user.id) ?? null
+      : null,
+    [conversationDetails.data, me.data?.user.id]
+  );
+  const canManageRoom = Boolean(roomMembership && (roomMembership.role === "owner" || roomMembership.role === "admin"));
 
   const createRoom = useMutation({
     mutationFn: api.createRoom,
@@ -147,6 +171,39 @@ export function Dashboard() {
       invalidateActiveConversation(selectedConversationId)
     ]);
   };
+
+  useEffect(() => {
+    if (!userMenu) {
+      return;
+    }
+
+    const closeMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".oldschool-context-menu")) {
+        return;
+      }
+      setUserMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setUserMenu(null);
+      }
+    };
+    const closeOnViewportChange = () => setUserMenu(null);
+
+    window.addEventListener("mousedown", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+
+    return () => {
+      window.removeEventListener("mousedown", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [userMenu]);
+
   const statusText = status || createRoom.error?.message || sendMessage.error?.message || "Ready";
   const windowTitle = selectedConversationId
     ? `Northstar Chat - ${selectedSummary?.kind === "room" ? `#${selectedConversationTitle}` : selectedConversationTitle}`
@@ -164,18 +221,165 @@ export function Dashboard() {
 
   const openDirectFromMember = async (userId: string, username: string) => {
     if (userId === me.data?.user.id) {
-      return;
+      return false;
     }
 
     if (!friendIds.has(userId)) {
       setStatus(`Direct chat with ${username} needs friendship first.`);
-      return;
+      return false;
     }
 
     try {
       await createDirect.mutateAsync(userId);
+      setMobileView("chat");
+      setUtilityPanel(null);
+      setStatus(`Opened chat with ${username}.`);
+      setUserMenu(null);
+      return true;
     } catch {
+      return false;
+    }
+  };
+
+  const openUserMenuAt = (
+    target: { role?: ConversationMember["role"] | null; userId: string; username: string },
+    element: HTMLElement
+  ) => {
+    if (target.userId === me.data?.user.id) {
       return;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const menuWidth = 188;
+    const viewportWidth = window.innerWidth;
+    setUserMenu({
+      role: target.role ?? null,
+      userId: target.userId,
+      username: target.username,
+      x: Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8)),
+      y: rect.bottom + 6
+    });
+  };
+
+  const refreshSelectedConversation = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() }),
+      invalidateActiveConversation(selectedConversationId)
+    ]);
+  };
+
+  const sendPoke = async (username: string) => {
+    if (!selectedConversationId || !me.data?.user.username) {
+      setStatus("Open chat first.");
+      return;
+    }
+
+    try {
+      const message = await api.sendMessage(selectedConversationId, {
+        attachmentIds: [],
+        body: `${me.data.user.username} poked @${username}`,
+        replyToMessageId: null
+      });
+      await Promise.all([
+        refreshSelectedConversation(),
+        api.markRead(selectedConversationId, { messageId: message.id })
+      ]);
+      setStatus(`${username} poked.`);
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
+
+  const runRoomMemberAction = async (
+    action: () => Promise<unknown>,
+    successMessage: string
+  ) => {
+    try {
+      await action();
+      await refreshSelectedConversation();
+      setStatus(successMessage);
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
+
+  const userMenuActions = useMemo(() => {
+    if (!userMenu) {
+      return [];
+    }
+
+    const actions: Array<{ danger?: boolean; id: UserMenuActionId; label: string }> = [];
+    actions.push({ id: "chat", label: "Chat" });
+    if (selectedConversationId) {
+      actions.push({ id: "poke", label: "Poke" });
+    }
+    if (!friendIds.has(userMenu.userId)) {
+      actions.push({ id: "add", label: "Add friend" });
+    }
+    if (selectedSummary?.kind === "room" && roomMembership) {
+      if (roomMembership.role === "owner" && userMenu.role === "member") {
+        actions.push({ id: "promote", label: "Promote" });
+      }
+      if (userMenu.role === "admin" && (roomMembership.role === "owner" || roomMembership.userId !== userMenu.userId)) {
+        actions.push({ id: "demote", label: "Demote" });
+      }
+      if (
+        userMenu.role
+        && userMenu.role !== "owner"
+        && userMenu.userId !== me.data?.user.id
+        && (roomMembership.role === "owner" || userMenu.role === "member")
+      ) {
+        actions.push({ danger: true, id: "ban", label: "Ban" });
+      }
+    }
+    return actions;
+  }, [friendIds, me.data?.user.id, roomMembership, selectedConversationId, selectedSummary?.kind, userMenu]);
+
+  const handleUserMenuAction = async (actionId: UserMenuActionId) => {
+    if (!userMenu) {
+      return;
+    }
+
+    const target = userMenu;
+    setUserMenu(null);
+
+    switch (actionId) {
+      case "add":
+        await sendFriendRequestFromRoom(target.username);
+        return;
+      case "ban":
+        if (!selectedConversationId) {
+          return;
+        }
+        await runRoomMemberAction(
+          () => api.removeMember(selectedConversationId, target.userId),
+          `${target.username} banned.`
+        );
+        return;
+      case "chat":
+        await openDirectFromMember(target.userId, target.username);
+        return;
+      case "demote":
+        if (!selectedConversationId) {
+          return;
+        }
+        await runRoomMemberAction(
+          () => api.removeAdmin(selectedConversationId, target.userId),
+          `${target.username} demoted.`
+        );
+        return;
+      case "poke":
+        await sendPoke(target.username);
+        return;
+      case "promote":
+        if (!selectedConversationId) {
+          return;
+        }
+        await runRoomMemberAction(
+          () => api.makeAdmin(selectedConversationId, target.userId),
+          `${target.username} promoted.`
+        );
+        return;
     }
   };
 
@@ -213,7 +417,7 @@ export function Dashboard() {
 
           <ChatPanel
             addUploadedAttachment={addUploadedAttachment}
-            canManageRoom={Boolean(selectedConversationId && selectedSummary?.kind === "room")}
+            canManageRoom={canManageRoom}
             conversationDetails={conversationDetails.data}
             isSending={sendMessage.isPending}
             meUserId={me.data?.user.id}
@@ -269,6 +473,7 @@ export function Dashboard() {
             }}
             onOpenDetails={() => setUtilityPanel("social")}
             onOpenManageRoom={roomModals.openManageRoom}
+            onOpenUserMenu={openUserMenuAt}
             onRemoveAttachment={removeUploadedAttachment}
             onSendMessage={async (body) => {
               if (!selectedConversationId) {
@@ -292,7 +497,7 @@ export function Dashboard() {
 
           <aside className="oldschool-members oldschool-bevel live-members-pane">
             <div className="live-members-toolbar">
-              {selectedSummary?.kind === "room" ? (
+              {selectedSummary?.kind === "room" && canManageRoom ? (
                 <button type="button" className="oldschool-button" onClick={roomModals.openManageRoom}>Manage</button>
               ) : (
                 <button type="button" className="oldschool-button" onClick={() => setUtilityPanel("social")}>Friends</button>
@@ -306,14 +511,26 @@ export function Dashboard() {
                 <div
                   key={member.userId}
                   className={`oldschool-member-row ${member.presence}`}
-                  onDoubleClick={() => void openDirectFromMember(member.userId, member.username)}
-                  title={member.userId === me.data?.user.id ? "You" : friendIds.has(member.userId) ? "Double click to open direct chat." : "Send friend request first."}
                 >
                   <span className="oldschool-member-role">{member.role === "owner" ? "~" : member.role === "admin" ? "@" : "+"}</span>
-                  <div className="oldschool-member-copy">
-                    <strong>{member.username}</strong>
-                    <span>{member.presence}</span>
-                  </div>
+                  {member.userId === me.data?.user.id ? (
+                    <div className="oldschool-member-copy">
+                      <strong>{member.username}</strong>
+                      <span>{member.presence}</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="oldschool-member-identity"
+                      onClick={(event) => openUserMenuAt(member, event.currentTarget)}
+                      title="Open member actions"
+                    >
+                      <div className="oldschool-member-copy">
+                        <strong>{member.username}</strong>
+                        <span>{member.presence}</span>
+                      </div>
+                    </button>
+                  )}
                   {member.userId !== me.data?.user.id && !friendIds.has(member.userId) && (
                     <button
                       type="button"
@@ -324,13 +541,24 @@ export function Dashboard() {
                     </button>
                   )}
                 </div>
-              )) : conversationDetails.data?.kind === "direct" && conversationDetails.data.directPeer ? (
-                <div className={`oldschool-member-row ${conversationDetails.data.directPeer.presence}`}>
+              )) : directPeer ? (
+                <div className={`oldschool-member-row ${directPeer.presence}`}>
                   <span className="oldschool-member-role">@</span>
-                  <div className="oldschool-member-copy">
-                    <strong>{conversationDetails.data.directPeer.username}</strong>
-                    <span>{conversationDetails.data.directPeer.presence}</span>
-                  </div>
+                  <button
+                    type="button"
+                    className="oldschool-member-identity"
+                    onClick={(event) => openUserMenuAt({
+                      role: null,
+                      userId: directPeer.id,
+                      username: directPeer.username
+                    }, event.currentTarget)}
+                    title="Open member actions"
+                  >
+                    <div className="oldschool-member-copy">
+                      <strong>{directPeer.username}</strong>
+                      <span>{directPeer.presence}</span>
+                    </div>
+                  </button>
                 </div>
               ) : (
                 <div className="oldschool-empty-note">No active room.</div>
@@ -354,7 +582,10 @@ export function Dashboard() {
           members={conversationDetails.data?.members}
           mode={utilityPanel}
           onAcceptFriendRequest={(requestId) => {
-            void api.acceptFriendRequest(requestId).then(() => contacts.refetch());
+            void api.acceptFriendRequest(requestId).then(async () => {
+              setStatus("Friend request accepted.");
+              await contacts.refetch();
+            }).catch((error: Error) => setStatus(error.message));
           }}
           onBlockUser={(userId) => {
             if (!window.confirm("Block this user?")) {
@@ -374,7 +605,10 @@ export function Dashboard() {
             }).catch((error: Error) => setStatus(error.message));
           }}
           onClose={() => setUtilityPanel(null)}
-          onCreateDirect={(userId) => createDirect.mutate(userId)}
+          onCreateDirect={async (userId) => {
+            const friend = contacts.data?.friends.find((item) => item.id === userId);
+            await openDirectFromMember(userId, friend?.username ?? "user");
+          }}
           onDeleteAccount={() => {
             void api.deleteAccount().then(() => {
               window.location.reload();
@@ -397,7 +631,10 @@ export function Dashboard() {
             void sessions.refetch();
           }}
           onRevokeSession={(sessionId) => {
-            void api.revokeSession(sessionId).then(() => sessions.refetch());
+            void api.revokeSession(sessionId).then(async () => {
+              setStatus("Session revoked.");
+              await sessions.refetch();
+            }).catch((error: Error) => setStatus(error.message));
           }}
           onSendFriendRequest={(input, onSuccess, onError) => {
             void api.sendFriendRequest(input).then(() => {
@@ -412,6 +649,25 @@ export function Dashboard() {
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
         />
+      )}
+
+      {userMenu && userMenuActions.length > 0 && (
+        <div
+          className="oldschool-context-menu oldschool-bevel"
+          style={{ left: userMenu.x, top: userMenu.y }}
+        >
+          <div className="oldschool-context-title">{userMenu.username}</div>
+          {userMenuActions.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              className={`oldschool-context-action ${action.danger ? "danger" : ""}`}
+              onClick={() => void handleUserMenuAction(action.id)}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
       )}
 
       {roomModals.createRoomOpen && (

@@ -9,7 +9,8 @@ export const presenceSnapshotSchema = z.object({
 
 export const unreadUpdateSchema = z.object({
   conversationId: z.string().uuid(),
-  unreadCount: z.number().int().nonnegative()
+  unreadCount: z.number().int().nonnegative(),
+  unreadMentionCount: z.number().int().nonnegative()
 });
 
 export const messageDeletedSchema = z.object({
@@ -46,7 +47,7 @@ export const socketMessageEnvelopeSchema = z.discriminatedUnion("type", [
 ]);
 
 export const activityPingSchema = z.object({
-  tabId: z.string().min(8),
+  tabId: z.string().min(1),
   conversationId: z.string().uuid().nullable().optional(),
   active: z.boolean(),
   timestamp: z.string()

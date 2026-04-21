@@ -15,6 +15,8 @@ type SocketState = {
   active: boolean;
 };
 
+const onlineThresholdMs = 60_000;
+
 const parseCookieValue = (cookieHeader: string | undefined, name: string) => {
   if (!cookieHeader) {
     return null;
@@ -89,7 +91,7 @@ export class RealtimeService {
       return "offline";
     }
     const now = Date.now();
-    const hasOnline = [...states.values()].some((entry) => entry.active && now - entry.lastActiveAt <= 60_000);
+    const hasOnline = [...states.values()].some((entry) => now - entry.lastActiveAt <= onlineThresholdMs);
     return hasOnline ? "online" : "afk";
   }
 
@@ -104,11 +106,18 @@ export class RealtimeService {
 
   public async trackActivity(userId: string, socketId: string, tabId: string, active: boolean, timestamp: string) {
     const existing = this.connections.get(userId) ?? new Map<string, SocketState>();
+    const previousEntry = existing.get(socketId);
     const previousPresence = this.computePresence(userId);
+    const parsedTimestamp = Date.parse(timestamp);
+    const normalizedTimestamp = Number.isNaN(parsedTimestamp)
+      ? Date.now()
+      : Math.min(parsedTimestamp, Date.now());
     existing.set(socketId, {
       socketId,
       tabId,
-      lastActiveAt: Number.isNaN(Date.parse(timestamp)) ? Date.now() : Date.parse(timestamp),
+      lastActiveAt: active
+        ? normalizedTimestamp
+        : previousEntry?.lastActiveAt ?? 0,
       active
     });
     this.connections.set(userId, existing);

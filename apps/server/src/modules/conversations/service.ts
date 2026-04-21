@@ -16,6 +16,9 @@ import { deleteAttachmentsByConversationId } from "../../lib/attachments.js";
 import { HttpError } from "../../lib/http.js";
 
 const normalizePair = (left: string, right: string): [string, string] => left < right ? [left, right] : [right, left];
+const mentionBoundaryPattern = "A-Za-z0-9_.-";
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const buildSelfMentionPattern = (username: string) => `(^|[^${mentionBoundaryPattern}])@${escapeRegex(username)}(?![${mentionBoundaryPattern}])`;
 
 const canUsersAccessDirectConversation = async (leftUserId: string, rightUserId: string) => {
   const [userAId, userBId] = normalizePair(leftUserId, rightUserId);
@@ -144,6 +147,7 @@ export const ensureRoomAdmin = async (conversationId: string, userId: string) =>
 };
 
 export const listConversations = async (auth: AuthSession) => {
+  const unreadMentionPattern = buildSelfMentionPattern(auth.user.username);
   const result = await db.execute(sql`
     with latest_messages as (
       select conversation_id, max(created_at) as last_message_at
@@ -177,7 +181,20 @@ export const listConversations = async (auth: AuthSession) => {
           and m.deleted_at is null
           and m.author_id <> ${auth.user.id}
           and (rc.updated_at is null or m.created_at > rc.updated_at)
-      )::int as unread_count
+      )::int as unread_count,
+      (
+        select count(*)
+        from messages m
+        left join read_cursors rc
+          on rc.conversation_id = c.id
+         and rc.user_id = ${auth.user.id}
+        where m.conversation_id = c.id
+          and m.deleted_at is null
+          and m.author_id <> ${auth.user.id}
+          and m.body is not null
+          and (rc.updated_at is null or m.created_at > rc.updated_at)
+          and m.body ~ ${unreadMentionPattern}
+      )::int as unread_mention_count
     from conversations c
     join conversation_members cm
       on cm.conversation_id = c.id
@@ -220,6 +237,7 @@ export const listConversations = async (auth: AuthSession) => {
     visibility: row.visibility ? row.visibility : null,
     ownerId: row.owner_id ? String(row.owner_id) : null,
     unreadCount: Number(row.unread_count ?? 0),
+    unreadMentionCount: Number(row.unread_mention_count ?? 0),
     memberCount: Number(row.member_count ?? 0),
     lastMessageAt: row.last_message_at ? new Date(String(row.last_message_at)).toISOString() : null,
     directPeer: directPeerMap.get(String(row.id)) ?? null,

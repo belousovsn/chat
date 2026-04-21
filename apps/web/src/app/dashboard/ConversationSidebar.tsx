@@ -110,7 +110,10 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
               <span className="oldschool-room-time">{formatRelativeTime(conversation.lastMessageAt)}</span>
               <span className="oldschool-room-name">{title}</span>
               <span className="oldschool-room-note">{subtitle}</span>
-              {conversation.unreadCount > 0 && <span className="oldschool-room-badge">{conversation.unreadCount}</span>}
+              <span className="oldschool-room-indicators">
+                {conversation.unreadMentionCount > 0 && <span className="oldschool-room-badge mention">@</span>}
+                {conversation.unreadCount > 0 && <span className="oldschool-room-badge">{conversation.unreadCount}</span>}
+              </span>
             </button>
           );
         }) : null}
