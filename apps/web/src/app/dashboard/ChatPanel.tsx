@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ChatMessage } from "@chat/shared";
 import { api } from "../../lib/api";
@@ -41,10 +41,67 @@ type ChatPanelProps = {
   showBackButton: boolean;
   uploadedAttachments: UploadedAttachment[];
 };
+type LegacyEmojiEntry = {
+  code: string;
+  label: string;
+  symbol: string;
+  variant: "face" | "symbol";
+};
+
+const legacyEmojiEntries: LegacyEmojiEntry[] = [
+  { code: ":-)", label: "Smile", symbol: "\u263A", variant: "face" },
+  { code: ":)", label: "Smile", symbol: "\u263A", variant: "face" },
+  { code: ";-)", label: "Wink", symbol: "\uD83D\uDE09", variant: "face" },
+  { code: ";)", label: "Wink", symbol: "\uD83D\uDE09", variant: "face" },
+  { code: ":-D", label: "Grin", symbol: "\uD83D\uDE04", variant: "face" },
+  { code: ":D", label: "Grin", symbol: "\uD83D\uDE04", variant: "face" },
+  { code: ":-P", label: "Tongue", symbol: "\uD83D\uDE1B", variant: "face" },
+  { code: ":P", label: "Tongue", symbol: "\uD83D\uDE1B", variant: "face" },
+  { code: ":-(", label: "Sad", symbol: "\u2639", variant: "face" },
+  { code: ":(", label: "Sad", symbol: "\u2639", variant: "face" },
+  { code: "8-)", label: "Cool", symbol: "\uD83D\uDE0E", variant: "face" },
+  { code: ":-O", label: "Surprised", symbol: "\uD83D\uDE2E", variant: "face" },
+  { code: ":'(", label: "Crying", symbol: "\uD83D\uDE22", variant: "face" },
+  { code: ":-X", label: "Sealed lips", symbol: "\uD83E\uDD10", variant: "face" },
+  { code: "(H)", label: "Heart", symbol: "\u2764\uFE0F", variant: "symbol" },
+  { code: "(U)", label: "Broken heart", symbol: "\uD83D\uDC94", variant: "symbol" },
+  { code: "(Y)", label: "Thumbs up", symbol: "\uD83D\uDC4D", variant: "symbol" },
+  { code: "(N)", label: "Thumbs down", symbol: "\uD83D\uDC4E", variant: "symbol" },
+  { code: "(F)", label: "Rose", symbol: "\uD83C\uDF39", variant: "symbol" },
+  { code: "(C)", label: "Coffee", symbol: "\u2615", variant: "symbol" }
+];
+const emojiPickerEntries = [
+  ":-)",
+  ";-)",
+  ":-D",
+  ":-P",
+  ":-(",
+  "8-)",
+  ":-O",
+  ":'(",
+  ":-X",
+  "(H)",
+  "(U)",
+  "(Y)",
+  "(N)",
+  "(F)",
+  "(C)"
+].map((code) => legacyEmojiEntries.find((entry) => entry.code === code) as LegacyEmojiEntry);
+const legacyEmojiByCode = new Map(
+  legacyEmojiEntries.map((entry) => [entry.code.toLowerCase(), entry])
+);
+const legacyEmojiPattern = new RegExp(
+  legacyEmojiEntries
+    .map((entry) => escapeForRegex(entry.code))
+    .sort((left, right) => right.length - left.length)
+    .join("|"),
+  "gi"
+);
 
 export function ChatPanel(props: ChatPanelProps) {
   const messagesRef = useRef<HTMLElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const previousConversationIdRef = useRef<string | null>(null);
   const [draftBody, setDraftBody] = useState("");
@@ -52,6 +109,7 @@ export function ChatPanel(props: ChatPanelProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [composerError, setComposerError] = useState("");
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [viewerAttachment, setViewerAttachment] = useState<ChatMessage["attachments"][number] | null>(null);
   const replyTarget = useMemo(
     () => props.messages?.items.find((message) => message.id === props.replyToMessageId) ?? null,
@@ -111,8 +169,36 @@ export function ChatPanel(props: ChatPanelProps) {
     setComposerError("");
     setEditingBody("");
     setEditingMessageId(null);
+    setEmojiPickerOpen(false);
     setViewerAttachment(null);
   }, [props.selectedConversationId]);
+
+  useEffect(() => {
+    if (!emojiPickerOpen) {
+      return;
+    }
+
+    const closePicker = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".oldschool-emoji-picker-shell")) {
+        return;
+      }
+      setEmojiPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEmojiPickerOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", closePicker);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener("mousedown", closePicker);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [emojiPickerOpen]);
 
   const handleUpload = async (file: File) => {
     if (!props.selectedConversationId) {
@@ -143,6 +229,24 @@ export function ChatPanel(props: ChatPanelProps) {
       setDraftBody("");
       window.requestAnimationFrame(() => composerRef.current?.focus());
     }
+  };
+
+  const insertLegacyEmojiCode = (code: string) => {
+    const textarea = composerRef.current;
+    const selectionStart = textarea?.selectionStart ?? draftBody.length;
+    const selectionEnd = textarea?.selectionEnd ?? draftBody.length;
+    const nextBody = `${draftBody.slice(0, selectionStart)}${code}${draftBody.slice(selectionEnd)}`;
+
+    setDraftBody(nextBody);
+    setEmojiPickerOpen(false);
+    window.requestAnimationFrame(() => {
+      if (!textarea) {
+        return;
+      }
+      const nextCursor = selectionStart + code.length;
+      textarea.focus();
+      textarea.setSelectionRange(nextCursor, nextCursor);
+    });
   };
 
   const loadOlderMessages = async () => {
@@ -435,13 +539,56 @@ export function ChatPanel(props: ChatPanelProps) {
             <button type="button" className="oldschool-button" onClick={() => props.setReplyToMessageId(null)}>X</button>
           </div>
         )}
-        <div className="oldschool-composer-row">
-          <span className="oldschool-composer-label">Message</span>
+        <div className="oldschool-composer-main-row">
+          <div className="oldschool-composer-actions oldschool-emoji-picker-shell" ref={emojiPickerRef}>
+            <button
+              type="button"
+              className="oldschool-icon-button"
+              title="Classic emoji"
+              aria-label="Classic emoji"
+              disabled={!props.selectedConversationId}
+              onClick={() => setEmojiPickerOpen((current) => !current)}
+            >
+              {"\u263A"}
+            </button>
+            {emojiPickerOpen && (
+              <div className="oldschool-emoji-picker oldschool-bevel">
+                {emojiPickerEntries.map((entry) => (
+                  <button
+                    key={entry.code}
+                    type="button"
+                    className="oldschool-emoji-option"
+                    onClick={() => insertLegacyEmojiCode(entry.code)}
+                    title={`${entry.label} ${entry.code}`}
+                  >
+                    <LegacyEmojiBadge entry={entry} />
+                    <span>{entry.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <label className="oldschool-icon-button oldschool-file-picker-icon" title="Attach file" aria-label="Attach file">
+              <span aria-hidden="true">{"\uD83D\uDCCE"}</span>
+              <input
+                type="file"
+                hidden
+                disabled={!props.selectedConversationId}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) {
+                    return;
+                  }
+                  await handleUpload(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
           <textarea
             ref={composerRef}
-            className="oldschool-grow live-message-input"
+            className="live-message-input"
             name="body"
-            placeholder=""
+            placeholder="Type a message"
             rows={3}
             value={draftBody}
             disabled={!props.selectedConversationId}
@@ -453,34 +600,15 @@ export function ChatPanel(props: ChatPanelProps) {
               }
             }}
           />
-          <button type="submit" className="oldschool-button active" disabled={!canSend}>
-            {props.isSending ? "Sending..." : "Send"}
+          <button
+            type="submit"
+            className="oldschool-icon-button active oldschool-send-button"
+            disabled={!canSend}
+            title={props.isSending ? "Sending..." : "Send"}
+            aria-label={props.isSending ? "Sending..." : "Send"}
+          >
+            {props.isSending ? "..." : "\u27A4"}
           </button>
-        </div>
-        <div className="oldschool-composer-row small">
-          <label className="oldschool-button oldschool-file-picker">
-            Attach
-            <input
-              type="file"
-              hidden
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) {
-                  return;
-                }
-                await handleUpload(file);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-          {props.replyToMessageId ? (
-            <button type="button" className="oldschool-button" onClick={() => props.setReplyToMessageId(null)}>Cancel reply</button>
-          ) : (
-            <span className="oldschool-status-text">Use Reply or @username to ping exact person.</span>
-          )}
-          <span className="oldschool-status-text">
-            {participants.length > 0 ? `${participants.length} visible in member list.` : "No active participant list."}
-          </span>
         </div>
         {composerError && <div className="oldschool-inline-error">{composerError}</div>}
         {props.uploadedAttachments.length > 0 && (
@@ -562,10 +690,10 @@ function renderMessageBody(
   }
 
   if (!message.mentions.length) {
-    return body;
+    return renderTextWithLegacyEmoji(body, `${message.id}-body`);
   }
 
-  const parts = [];
+  const parts: ReactNode[] = [];
   let cursor = 0;
 
   for (const mention of [...message.mentions].sort((left, right) => left.start - right.start)) {
@@ -574,7 +702,10 @@ function renderMessageBody(
     }
 
     if (mention.start > cursor) {
-      parts.push(body.slice(cursor, mention.start));
+      parts.push(...renderTextWithLegacyEmoji(
+        body.slice(cursor, mention.start),
+        `${message.id}-${cursor}`
+      ));
     }
 
     const target = participantsByUserId.get(mention.userId) ?? {
@@ -596,8 +727,56 @@ function renderMessageBody(
   }
 
   if (cursor < body.length) {
-    parts.push(body.slice(cursor));
+    parts.push(...renderTextWithLegacyEmoji(body.slice(cursor), `${message.id}-${cursor}`));
   }
 
   return parts;
+}
+
+function renderTextWithLegacyEmoji(text: string, keyPrefix: string) {
+  if (!text) {
+    return [];
+  }
+
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of text.matchAll(legacyEmojiPattern)) {
+    const code = match[0];
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      parts.push(text.slice(cursor, index));
+    }
+
+    const entry = legacyEmojiByCode.get(code.toLowerCase());
+    if (entry) {
+      parts.push(<LegacyEmojiBadge key={`${keyPrefix}-${index}-${entry.code}`} entry={entry} />);
+    } else {
+      parts.push(code);
+    }
+
+    cursor = index + code.length;
+  }
+
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor));
+  }
+
+  return parts.length ? parts : [text];
+}
+
+function LegacyEmojiBadge(props: { entry: LegacyEmojiEntry }) {
+  return (
+    <span
+      className={`oldschool-legacy-emoji ${props.entry.variant}`}
+      title={`${props.entry.label} ${props.entry.code}`}
+      aria-label={props.entry.label}
+    >
+      {props.entry.symbol}
+    </span>
+  );
+}
+
+function escapeForRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
