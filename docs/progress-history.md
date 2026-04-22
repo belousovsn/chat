@@ -28,16 +28,6 @@
 <hard to make LLM do proper UI without explicit details>
 ---
 
-# Human-Readable Status Report
-
-- Overall project status: app deployed publicly on `https://chat.memdecks.com`. Local MVP work and first production bring-up are done.
-- What's built: auth, sessions, rooms, DMs, friends, blocking, presence, messages, uploads, moderation, smoke flow, regression tests, and coordinator docs. Monorepo split into `apps/server`, `apps/web`, `packages/shared`.
-- W1 through W8: shell split, server harden, smoke/docs, frontend polish, Docker packet, backend regressions, manual QA fixes, and repo hygiene all landed.
-- What verified: `@chat/server check` pass. `@chat/server build` pass. `@chat/server test` pass. `@chat/web check` pass. `@chat/web build` pass. Root `corepack pnpm check/build` pass. Public production deploy verified with live HTML, `/api/health`, HTTPS, and register flow on `chat.memdecks.com`. `corepack pnpm smoke:prod` now passes against the live site, and a validated backup set exists on the droplet.
-- What blocked: real SMTP credentials are still not wired, backups are scripted but not yet automated, monitoring is not yet in place, and XMPP/Jabber support is still pending. DB-backed regression cases still depend on PostgreSQL availability in local environments.
-- What remains: apply real SMTP settings on the server, schedule recurring backups, add monitoring/alerts, then continue with thin-slice XMPP implementation.
-
----
 
 ## Tech Stack
 
