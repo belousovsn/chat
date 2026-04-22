@@ -52,6 +52,7 @@ Production compose includes the same XMPP service behind the `xmpp` profile so t
 Enable it on the server:
 
 ```bash
+sudo ./ops/scripts/refresh-xmpp-certs.sh xmpp.chat.example.com
 docker compose --env-file .env.production -f docker-compose.prod.yml --profile xmpp up -d xmpp
 COMPOSE_ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml ./ops/scripts/xmpp-register-user.sh alice xmpp.chat.example.com replace-me
 ```
@@ -62,6 +63,11 @@ Recommended production DNS and ports:
 - `5222` for client c2s
 - `5269` reserved for federation later
 - `5443` local-only admin HTTP endpoint unless you deliberately expose and protect it
+
+Production TLS note:
+
+- `docker-compose.prod.yml` expects readable PEM copies at `/srv/chat/certs/xmpp/fullchain.pem` and `/srv/chat/certs/xmpp/privkey.pem`
+- refresh them after cert issuance or renewal with [ops/scripts/refresh-xmpp-certs.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/refresh-xmpp-certs.sh)
 
 ## App Dashboard
 
@@ -94,10 +100,10 @@ Shortest path on Windows:
    - port: `5222`
 6. Connect.
 
-Expected caveat right now:
+Expected behavior now:
 
-- this thin slice is demo-grade and not fully TLS-hardened yet
-- client may warn about insecure or unencrypted connection
+- production now uses Let’s Encrypt certs for `xmpp.memdecks.com`
+- client should prefer STARTTLS on `5222`
 - use demo credentials only, not personal password
 
 Second demo account for message tests:

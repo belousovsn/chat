@@ -25,6 +25,7 @@ Relevant files:
 - [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf)
 - [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md)
 - [docs/xmpp-thin-slice.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-thin-slice.md)
+- [ops/scripts/refresh-xmpp-certs.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/refresh-xmpp-certs.sh)
 
 ## One-Time Server Prep
 
@@ -156,4 +157,4 @@ systemctl list-timers chat-backup.timer --no-pager
 - Real SMTP is not configured yet.
 - Backup automation assets are in repo but not yet enabled on the server.
 - Monitoring and log aggregation are still manual.
-- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222`, but real external client verification and federation testing are still pending.
+- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222` with public STARTTLS and a valid Let's Encrypt cert, but client UX verification and federation testing are still pending.

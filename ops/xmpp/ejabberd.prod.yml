@@ -1,0 +1,65 @@
+hosts:
+  - HOST
+
+loglevel: info
+
+certfiles:
+  - /certs/fullchain.pem
+  - /certs/privkey.pem
+
+acl:
+  admin:
+    user:
+      - ADMIN
+      - APIJID
+
+api_permissions:
+  "xmpp dashboard":
+    who:
+      - admin
+    what:
+      - connected_users_info
+      - connected_users_number
+      - incoming_s2s_number
+      - outgoing_s2s_number
+      - status
+    from:
+      - ejabberd_ctl
+      - mod_http_api
+
+access_rules:
+  configure:
+    allow: admin
+
+listen:
+  -
+    port: 5222
+    module: ejabberd_c2s
+    starttls: true
+  -
+    port: 5269
+    module: ejabberd_s2s_in
+  -
+    port: 5443
+    module: ejabberd_http
+    request_handlers:
+      /admin: ejabberd_web_admin
+      /bosh: mod_bosh
+      /websocket: ejabberd_http_ws
+      /.well-known/host-meta: mod_host_meta
+      /.well-known/host-meta.json: mod_host_meta
+  -
+    port: 5281
+    module: ejabberd_http
+    request_handlers:
+      /api: mod_http_api
+
+modules:
+  mod_admin_extra: {}
+  mod_bosh: {}
+  mod_http_api: {}
+  mod_last: {}
+  mod_ping:
+    send_pings: true
+  mod_roster: {}
+  mod_vcard: {}
