@@ -60,6 +60,11 @@ Presence note:
 - for live online/offline status, the users usually need a roster subscription relationship
 - in this repo that can be created from the server with [ops/scripts/xmpp-link-users.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/xmpp-link-users.sh)
 
+App-managed account note:
+
+- when the app enables `XMPP_USER_PROVISIONING_ENABLED`, new app registrations can get matching XMPP accounts automatically
+- older app accounts can be repaired from the app settings by entering the current password once
+
 Current server-side validation on 2026-04-22:
 
 - TCP on `5222` is reachable from the public internet

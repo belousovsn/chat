@@ -6,6 +6,7 @@ import type {
   ContactRequest,
   ConversationMember,
   SessionEntry,
+  XmppAccount,
   XmppStatus
 } from "./types";
 
@@ -28,6 +29,7 @@ type InfoSidebarProps = {
   onDeleteAccount: () => void;
   onRefreshContacts: () => void;
   onRefreshSessions: () => void;
+  onRefreshXmppAccount: () => void;
   onRefreshXmpp: () => void;
   onRemoveFriend: (userId: string) => void;
   onRevokeSession: (sessionId: string) => void;
@@ -35,7 +37,9 @@ type InfoSidebarProps = {
   onUnblockUser: (userId: string) => void;
   requests: ContactRequest[] | undefined;
   sessions: SessionEntry[] | undefined;
+  xmppAccount: XmppAccount | undefined;
   xmppStatus: XmppStatus | undefined;
+  onProvisionXmppAccount: (currentPassword: string, onSuccess: () => void) => void;
 };
 
 export function InfoSidebar(props: InfoSidebarProps) {
@@ -285,6 +289,51 @@ export function InfoSidebar(props: InfoSidebarProps) {
               </div>
             </section>
 
+            {props.xmppAccount && (
+              <section className="oldschool-group oldschool-bevel">
+                <div className="oldschool-inline-form">
+                  <strong>My Jabber account</strong>
+                  <button type="button" className="oldschool-button" onClick={props.onRefreshXmppAccount}>Refresh</button>
+                </div>
+                <div className="oldschool-inset oldschool-kv-panel">
+                  <div><strong>JID:</strong> {props.xmppAccount.jid ?? "not available"}</div>
+                  <div><strong>Host:</strong> {props.xmppAccount.clientHost ?? "not set"}</div>
+                  <div><strong>Port:</strong> {props.xmppAccount.ports.client}</div>
+                  <div><strong>Provisioned:</strong> {props.xmppAccount.exists === null ? "unknown" : props.xmppAccount.exists ? "yes" : "no"}</div>
+                </div>
+                {props.xmppAccount.passwordManaged && (
+                  <form
+                    className="stack"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const form = new FormData(event.currentTarget);
+                      props.onProvisionXmppAccount(String(form.get("currentPassword")), () => {
+                        event.currentTarget.reset();
+                      });
+                    }}
+                  >
+                    <label className="oldschool-field">
+                      <span>Current password to provision or repair</span>
+                      <input name="currentPassword" type="password" minLength={8} required />
+                    </label>
+                    <button type="submit" className="oldschool-button active">Sync Jabber account</button>
+                  </form>
+                )}
+                <div className="oldschool-warning-panel oldschool-inset">
+                  {props.xmppAccount.warnings.length ? (
+                    <ul className="oldschool-warning-list">
+                      {props.xmppAccount.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                    </ul>
+                  ) : (
+                    <div className="oldschool-empty-note">Jabber account settings look ready.</div>
+                  )}
+                  {props.xmppAccount.lastError && (
+                    <div className="oldschool-inline-error">Last error: {props.xmppAccount.lastError}</div>
+                  )}
+                </div>
+              </section>
+            )}
+
             {props.xmppStatus && (
               <section className="oldschool-group oldschool-bevel">
                 <div className="oldschool-inline-form">
@@ -367,9 +416,30 @@ export function InfoSidebar(props: InfoSidebarProps) {
             <section className="oldschool-group oldschool-bevel">
               <div className="oldschool-inline-form">
                 <strong>Status</strong>
-                <button type="button" className="oldschool-button" onClick={props.onRefreshXmpp}>Refresh</button>
+                {props.xmppAccount && <button type="button" className="oldschool-button" onClick={props.onRefreshXmppAccount}>Refresh account</button>}
+                {props.xmppStatus && <button type="button" className="oldschool-button" onClick={props.onRefreshXmpp}>Refresh admin</button>}
                 <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("settings")}>Back to settings</button>
               </div>
+              {props.xmppAccount && (
+                <div className="oldschool-jabber-statgrid">
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>My JID</strong>
+                    <span>{props.xmppAccount.jid ?? "not set"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Provisioned</strong>
+                    <span>{props.xmppAccount.exists === null ? "unknown" : props.xmppAccount.exists ? "yes" : "no"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Host</strong>
+                    <span>{props.xmppAccount.clientHost ?? "not set"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Client port</strong>
+                    <span>{props.xmppAccount.ports.client}</span>
+                  </div>
+                </div>
+              )}
               {props.xmppStatus ? (
                 <div className="oldschool-jabber-statgrid">
                   <div className="oldschool-kv-card oldschool-inset">
@@ -398,7 +468,11 @@ export function InfoSidebar(props: InfoSidebarProps) {
                   </div>
                 </div>
               ) : (
-                <div className="oldschool-empty-note">No XMPP data loaded for this account.</div>
+                <div className="oldschool-empty-note">
+                  {props.xmppAccount
+                    ? "Admin dashboard hidden for this account."
+                    : "No XMPP data loaded for this account."}
+                </div>
               )}
             </section>
 

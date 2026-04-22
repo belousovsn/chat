@@ -55,6 +55,8 @@ The current droplet was also cleaned up from older containers and given a persis
    - `SMTP_SECURE`
    - `SMTP_USER`
    - `SMTP_PASS`
+   - `XMPP_USER_PROVISIONING_ENABLED` if you want app registrations and password changes to mirror into ejabberd
+   - `XMPP_USER_PROVISIONING_STRICT` if you want XMPP sync failures to fail the app request instead of degrading gracefully
    - `BACKUP_DIR` if you want backups outside `/srv/chat/backups`
    - `BACKUP_KEEP_DAYS` if you want automatic retention pruning
 4. Keep `RUN_SEED=false` for public deployment unless you explicitly want demo users.
@@ -64,6 +66,7 @@ Important:
 - `DATABASE_URL` and `POSTGRES_PASSWORD` must match.
 - If you use a real SMTP provider, set both `SMTP_USER` and `SMTP_PASS` together.
 - If you leave `mailpit` in place, password reset mail is still internal only.
+- Existing app users created before XMPP provisioning is enabled cannot be auto-backfilled with the old password because the app stores password hashes only. They need a password change, reset, or the in-app XMPP repair flow.
 
 ## Launch
 
@@ -119,6 +122,22 @@ That site serves the correct certificate for the XMPP hostname and proxies:
 - `/.well-known/host-meta.json`
 - `/bosh`
 - `/websocket`
+
+## App-Managed XMPP Users
+
+When you want the app to create and repair XMPP users automatically:
+
+1. Set `XMPP_USER_PROVISIONING_ENABLED=true` in `.env.production`.
+2. Optionally set `XMPP_USER_PROVISIONING_STRICT=true` if account sync failures should fail the app request instead of continuing.
+3. Restart the app container.
+
+Current behavior of that feature:
+
+- new app registrations create matching XMPP accounts
+- password changes and reset-password flow update the XMPP password
+- account deletion unregisters the XMPP account
+- accepted friendships can sync roster subscriptions for presence
+- existing pre-flag users still need one repair/provision action in the app because plaintext passwords are not stored
 
 ## Smoke Checks
 

@@ -66,6 +66,7 @@ export function Dashboard() {
     publicRooms,
     selectedSummary,
     sessions,
+    xmppAccount,
     xmppStatus
   } = useDashboardData({
     publicSearch,
@@ -448,7 +449,7 @@ export function Dashboard() {
           onOpenSettings={() => setUtilityPanel("settings")}
           onOpenSocial={() => setUtilityPanel("social")}
           onSignOut={() => logout.mutate()}
-          showJabber={Boolean(me.data?.user.canViewXmppAdmin)}
+          showJabber={Boolean(me.data?.user.canViewXmppAdmin || xmppAccount.data?.passwordManaged || xmppAccount.data?.exists)}
           windowTitle={windowTitle}
         />
 
@@ -643,6 +644,7 @@ export function Dashboard() {
             void api.changePassword(input.currentPassword, input.newPassword).then(() => {
               setStatus("Password changed.");
               onSuccess();
+              void xmppAccount.refetch();
             }).catch((error: Error) => setStatus(error.message));
           }}
           onClose={() => setUtilityPanel(null)}
@@ -671,8 +673,18 @@ export function Dashboard() {
           onRefreshSessions={() => {
             void sessions.refetch();
           }}
+          onRefreshXmppAccount={() => {
+            void xmppAccount.refetch();
+          }}
           onRefreshXmpp={() => {
             void xmppStatus.refetch();
+          }}
+          onProvisionXmppAccount={(currentPassword, onSuccess) => {
+            void api.provisionXmppAccount(currentPassword).then(async () => {
+              setStatus("Jabber account synced.");
+              onSuccess();
+              await xmppAccount.refetch();
+            }).catch((error: Error) => setStatus(error.message));
           }}
           onRevokeSession={(sessionId) => {
             void api.revokeSession(sessionId).then(async () => {
@@ -698,6 +710,7 @@ export function Dashboard() {
           }}
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
+          xmppAccount={xmppAccount.data}
           xmppStatus={xmppStatus.data}
         />
       )}

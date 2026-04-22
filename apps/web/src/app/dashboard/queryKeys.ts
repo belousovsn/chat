@@ -7,5 +7,6 @@ export const dashboardQueryKeys = {
   publicRooms: (search: string) => ["public-rooms", search] as const,
   publicRoomsRoot: () => ["public-rooms"] as const,
   sessions: () => ["sessions"] as const,
+  xmppAccount: () => ["xmpp-account"] as const,
   xmppStatus: () => ["xmpp-status"] as const
 };

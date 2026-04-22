@@ -88,6 +88,8 @@ export const config = {
   xmppApiBaseUrl: optionalValue("XMPP_API_BASE_URL"),
   xmppApiUser,
   xmppApiPass,
+  xmppUserProvisioningEnabled: parseBoolean("XMPP_USER_PROVISIONING_ENABLED", false),
+  xmppUserProvisioningStrict: parseBoolean("XMPP_USER_PROVISIONING_STRICT", false),
   xmppClientPort: Number(requireValue("XMPP_CLIENT_PORT", "5222")),
   xmppFederationEnabled: parseBoolean("XMPP_FEDERATION_ENABLED", false),
   xmppFederationPort: Number(requireValue("XMPP_FEDERATION_PORT", "5269")),

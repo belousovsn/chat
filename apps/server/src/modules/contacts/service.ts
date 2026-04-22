@@ -9,6 +9,8 @@ import {
 } from "../../db/schema.js";
 import type { AuthSession } from "../../lib/auth.js";
 import { HttpError } from "../../lib/http.js";
+import { config } from "../../config.js";
+import { linkXmppUsers, unlinkXmppUsers } from "../xmpp/service.js";
 
 const normalizePair = (left: string, right: string): [string, string] => left < right ? [left, right] : [right, left];
 
@@ -114,11 +116,21 @@ export const acceptFriendRequest = async (auth: AuthSession, requestId: string) 
   const [userAId, userBId] = normalizePair(row.requesterId, row.receiverId);
   await db.update(friendRequests).set({ status: "accepted", respondedAt: new Date() }).where(eq(friendRequests.id, row.id));
   await db.insert(friendships).values([{ userAId, userBId }]).onConflictDoNothing();
+
+  const [requester] = await db.select({ username: users.username }).from(users).where(eq(users.id, row.requesterId));
+  if (requester) {
+    await linkXmppUsers(config, requester.username, auth.user.username).catch(() => undefined);
+  }
 };
 
 export const removeFriend = async (auth: AuthSession, userId: string) => {
   const [userAId, userBId] = normalizePair(auth.user.id, userId);
   await db.delete(friendships).where(and(eq(friendships.userAId, userAId), eq(friendships.userBId, userBId)));
+
+  const [target] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
+  if (target) {
+    await unlinkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+  }
 };
 
 export const blockUser = async (auth: AuthSession, userId: string) => {
@@ -126,6 +138,11 @@ export const blockUser = async (auth: AuthSession, userId: string) => {
     throw new HttpError(400, "Cannot block yourself");
   }
   await db.insert(userBlocks).values({ blockerId: auth.user.id, blockedId: userId }).onConflictDoNothing();
+
+  const [target] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
+  if (target) {
+    await unlinkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+  }
 
   for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {
     await db.update(conversations).set({ isFrozen: true, updatedAt: new Date() }).where(eq(conversations.id, conversationId));
@@ -148,6 +165,22 @@ export const unblockUser = async (auth: AuthSession, userId: string) => {
 
   if (remainingBlocks.length > 0) {
     return;
+  }
+
+  const [target] = await db.select({
+    id: users.id,
+    username: users.username
+  }).from(users).where(eq(users.id, userId));
+  if (target) {
+    const [userAId, userBId] = normalizePair(auth.user.id, userId);
+    const existingFriendship = await db.select().from(friendships).where(and(
+      eq(friendships.userAId, userAId),
+      eq(friendships.userBId, userBId)
+    ));
+
+    if (existingFriendship.length > 0) {
+      await linkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+    }
   }
 
   for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {

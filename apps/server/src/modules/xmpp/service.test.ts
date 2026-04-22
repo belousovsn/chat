@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildXmppStatus, type XmppRuntimeConfig } from "./service.js";
+import {
+  buildXmppAccount,
+  buildXmppStatus,
+  linkXmppUsers,
+  type XmppRuntimeConfig,
+  unlinkXmppUsers,
+  upsertXmppUser
+} from "./service.js";
 
 const baseRuntime = (): XmppRuntimeConfig => ({
   xmppAdminJid: "xmppadmin@localhost",
@@ -14,7 +21,9 @@ const baseRuntime = (): XmppRuntimeConfig => ({
   xmppEnabled: true,
   xmppFederationEnabled: false,
   xmppFederationPort: 5269,
-  xmppHost: "localhost"
+  xmppHost: "localhost",
+  xmppUserProvisioningEnabled: true,
+  xmppUserProvisioningStrict: false
 });
 
 test("buildXmppStatus returns disabled thin-slice guidance when xmpp is off", async () => {
@@ -67,4 +76,83 @@ test("buildXmppStatus reads ejabberd metrics when api is configured", async () =
   assert.equal(status.metrics.outgoingS2S, 2);
   assert.equal(status.metrics.sampleSessions[0]?.jid, "alice@localhost/psi");
   assert.equal(calls.length, 4);
+});
+
+test("buildXmppAccount reports current user JID and lookup result", async () => {
+  const fetchImpl: typeof fetch = (async () => (
+    new Response("0", {
+      headers: { "Content-Type": "application/json" },
+      status: 200
+    })
+  )) as typeof fetch;
+
+  const account = await buildXmppAccount(baseRuntime(), "alice", fetchImpl);
+
+  assert.equal(account.jid, "alice@localhost");
+  assert.equal(account.exists, true);
+  assert.equal(account.passwordManaged, true);
+});
+
+test("upsertXmppUser registers when account does not exist", async () => {
+  const commands: Array<{ body: string; url: string }> = [];
+  const fetchImpl: typeof fetch = (async (input, init) => {
+    const url = String(input);
+    commands.push({
+      body: String(init?.body ?? ""),
+      url
+    });
+
+    const payload = url.endsWith("/check_account") ? "1" : "\"\"";
+    return new Response(payload, {
+      headers: { "Content-Type": "application/json" },
+      status: 200
+    });
+  }) as typeof fetch;
+
+  const result = await upsertXmppUser(baseRuntime(), "alice", "secret-pass", fetchImpl);
+
+  assert.equal(result.created, true);
+  assert.equal(commands.length, 2);
+  assert.match(commands[1]?.url ?? "", /register$/);
+  assert.match(commands[1]?.body ?? "", /"password":"secret-pass"/);
+});
+
+test("upsertXmppUser changes password when account already exists", async () => {
+  const commands: string[] = [];
+  const fetchImpl: typeof fetch = (async (input) => {
+    const url = String(input);
+    commands.push(url);
+
+    const payload = url.endsWith("/check_account") ? "0" : "\"\"";
+    return new Response(payload, {
+      headers: { "Content-Type": "application/json" },
+      status: 200
+    });
+  }) as typeof fetch;
+
+  const result = await upsertXmppUser(baseRuntime(), "alice", "new-pass", fetchImpl);
+
+  assert.equal(result.created, false);
+  assert.equal(commands.at(-1)?.endsWith("/change_password"), true);
+});
+
+test("linkXmppUsers and unlinkXmppUsers update both roster directions", async () => {
+  const commands: string[] = [];
+  const fetchImpl: typeof fetch = (async (input) => {
+    commands.push(String(input));
+    return new Response("\"\"", {
+      headers: { "Content-Type": "application/json" },
+      status: 200
+    });
+  }) as typeof fetch;
+
+  await linkXmppUsers(baseRuntime(), "alice", "bob", fetchImpl);
+  await unlinkXmppUsers(baseRuntime(), "alice", "bob", fetchImpl);
+
+  assert.deepEqual(commands.map((url) => url.split("/").at(-1)), [
+    "add_rosteritem",
+    "add_rosteritem",
+    "delete_rosteritem",
+    "delete_rosteritem"
+  ]);
 });

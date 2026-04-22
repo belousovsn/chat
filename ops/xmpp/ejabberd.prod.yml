@@ -18,11 +18,17 @@ api_permissions:
     who:
       - admin
     what:
+      - add_rosteritem
+      - change_password
+      - check_account
       - connected_users_info
       - connected_users_number
+      - delete_rosteritem
       - incoming_s2s_number
       - outgoing_s2s_number
+      - register
       - status
+      - unregister
     from:
       - ejabberd_ctl
       - mod_http_api

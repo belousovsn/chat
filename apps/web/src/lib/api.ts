@@ -1,4 +1,5 @@
 import type {
+  XmppAccount,
   AuthSession,
   ChatMessage,
   ContactsResponse,
@@ -52,6 +53,8 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) => request<{ ok: boolean }>("/api/auth/change-password", "POST", { currentPassword, newPassword }),
   deleteAccount: () => request<{ ok: boolean }>("/api/me", "DELETE"),
   sessions: () => request<AuthSession>("/api/sessions"),
+  xmppAccount: () => request<XmppAccount>("/api/xmpp/account"),
+  provisionXmppAccount: (currentPassword: string) => request<XmppAccount>("/api/xmpp/provision", "POST", { currentPassword }),
   xmppStatus: () => request<XmppStatus>("/api/xmpp/status"),
   revokeSession: (sessionId: string) => request<AuthSession>("/api/sessions/revoke", "POST", { sessionId }),
   contacts: () => request<ContactsResponse>("/api/contacts"),
