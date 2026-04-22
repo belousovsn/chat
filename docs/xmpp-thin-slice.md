@@ -68,6 +68,7 @@ Production TLS note:
 
 - `docker-compose.prod.yml` expects readable PEM copies at `/srv/chat/certs/xmpp/fullchain.pem` and `/srv/chat/certs/xmpp/privkey.pem`
 - refresh them after cert issuance or renewal with [ops/scripts/refresh-xmpp-certs.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/refresh-xmpp-certs.sh)
+- Gajim and similar clients may also probe `https://xmpp.<your-domain>/.well-known/host-meta`, so install [ops/nginx/xmpp.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/xmpp.memdecks.com.conf) or equivalent for the XMPP hostname with the correct TLS certificate
 
 ## App Dashboard
 
@@ -97,6 +98,7 @@ Current production behavior:
 
 - production uses a valid Let's Encrypt certificate for `xmpp.memdecks.com`
 - client connections should use STARTTLS on `5222`
+- HTTPS discovery on `xmpp.memdecks.com` should also present the `xmpp.memdecks.com` certificate
 - use the demo credentials only for connection testing
 
 Web app note:
@@ -105,7 +107,7 @@ Web app note:
 
 ## Next Milestones
 
-1. Verify real external client login against `xmpp.memdecks.com`.
-2. Lock down TLS and DNS records for XMPP hostnames.
-3. Decide whether to provision XMPP users from the app or keep separate test users.
-4. Add real federation peer test before attempting message bridging.
+1. Verify clean external GUI login against `xmpp.memdecks.com` after discovery fixes.
+2. Decide whether to provision XMPP users from the app or keep separate test users.
+3. Add real federation peer test on `5269`.
+4. Add message bridging only after client login is stable.

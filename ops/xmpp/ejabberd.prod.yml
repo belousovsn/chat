@@ -57,6 +57,11 @@ listen:
 modules:
   mod_admin_extra: {}
   mod_bosh: {}
+  mod_disco:
+    name: Memdecks XMPP
+  mod_host_meta:
+    bosh_service_url: "https://@HOST@/bosh"
+    websocket_url: "wss://@HOST@/websocket"
   mod_http_api: {}
   mod_last: {}
   mod_ping:

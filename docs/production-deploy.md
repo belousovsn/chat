@@ -23,6 +23,7 @@ Relevant files:
 - [docker-compose.prod.yml](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docker-compose.prod.yml)
 - [.env.production.example](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/.env.production.example)
 - [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf)
+- [ops/nginx/xmpp.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/xmpp.memdecks.com.conf)
 - [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md)
 - [docs/xmpp-thin-slice.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-thin-slice.md)
 - [ops/scripts/refresh-xmpp-certs.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/refresh-xmpp-certs.sh)
@@ -101,6 +102,24 @@ certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email 
 
 `certbot` will rewrite the site config to add TLS and HTTP-to-HTTPS redirect.
 
+## XMPP Host Discovery
+
+Some Windows XMPP clients probe `https://xmpp.<your-domain>/.well-known/host-meta` during setup. If that hostname serves the wrong certificate on `443`, clients can stay stuck on connecting even when `5222` and STARTTLS are healthy.
+
+For the XMPP hostname:
+
+1. Copy [ops/nginx/xmpp.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/xmpp.memdecks.com.conf) to `/etc/nginx/sites-available/xmpp.memdecks.com`.
+2. Symlink it into `/etc/nginx/sites-enabled/`.
+3. Ensure the TLS files for `xmpp.<your-domain>` exist in `/etc/letsencrypt/live/<xmpp-domain>/`.
+4. Validate and reload `nginx`.
+
+That site serves the correct certificate for the XMPP hostname and proxies:
+
+- `/.well-known/host-meta`
+- `/.well-known/host-meta.json`
+- `/bosh`
+- `/websocket`
+
 ## Smoke Checks
 
 Local checks on the server:
@@ -157,4 +176,4 @@ systemctl list-timers chat-backup.timer --no-pager
 - Real SMTP is not configured yet.
 - Backup automation assets are in repo but not yet enabled on the server.
 - Monitoring and log aggregation are still manual.
-- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222` with public STARTTLS and a valid Let's Encrypt cert, but client UX verification and federation testing are still pending.
+- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222` with public STARTTLS and a valid Let's Encrypt cert; HTTPS discovery on the XMPP hostname must also serve the matching certificate for some desktop clients.
