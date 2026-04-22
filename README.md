@@ -55,6 +55,13 @@ docker compose --profile xmpp up --build
 
 See [docs/xmpp-thin-slice.md](docs/xmpp-thin-slice.md) for local accounts, client connection, and production profile wiring.
 
+Admin visibility note:
+
+- any signed-in user can load their own Jabber account panel from `/api/xmpp/account`
+- the admin Jabber status/dashboard is only available to usernames listed in `XMPP_ADMIN_USERS`
+- in the checked-in production example env, `XMPP_ADMIN_USERS=kinzul,da_test`, so creating a web-app user with username `da_test` unlocks the admin Jabber controls
+
+
 ## Local Non-Docker Smoke Path
 
 Use this when Docker unavailable and you still need seeded demo verification.
