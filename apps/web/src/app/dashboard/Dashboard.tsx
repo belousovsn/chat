@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useChatStore } from "../../features/chat/store";
 import { api } from "../../lib/api";
@@ -21,6 +21,12 @@ type UserMenuState = {
   username: string;
   x: number;
   y: number;
+};
+type ToastTone = "error" | "success";
+type ToastEntry = {
+  id: number;
+  message: string;
+  tone: ToastTone;
 };
 
 const toConversationSummary = (conversation: ConversationDetails): ConversationSummary => ({
@@ -52,9 +58,10 @@ export function Dashboard() {
   } = useChatStore();
   const [mobileView, setMobileView] = useState<MobileView>("sidebar");
   const [publicSearch, setPublicSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanelMode | null>(null);
   const [userMenu, setUserMenu] = useState<UserMenuState | null>(null);
+  const toastTimeoutsRef = useRef<number[]>([]);
   const roomModals = useRoomModalState();
 
   const {
@@ -118,6 +125,28 @@ export function Dashboard() {
     [conversationDetails.data, me.data?.user.id]
   );
   const canManageRoom = Boolean(roomMembership && (roomMembership.role === "owner" || roomMembership.role === "admin"));
+  const dismissToast = (toastId: number) => {
+    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+  };
+  const showToast = (message: string, tone: ToastTone = "success") => {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      return;
+    }
+
+    const toastId = Date.now() + Math.random();
+    setToasts((current) => [...current, { id: toastId, message: trimmedMessage, tone }]);
+    toastTimeoutsRef.current.push(window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== toastId));
+    }, 3200));
+  };
+  const showErrorToast = (error: unknown) => {
+    showToast((error as Error)?.message ?? "Something went wrong.", "error");
+  };
+
+  useEffect(() => () => {
+    toastTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+  }, []);
 
   const createRoom = useMutation({
     mutationFn: api.createRoom,
@@ -133,9 +162,12 @@ export function Dashboard() {
       ]);
       setSelectedConversationId(conversation.id);
       setMobileView("chat");
-      setStatus("Room created.");
+      showToast("Room created.");
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.publicRoomsRoot() });
+    },
+    onError: (error: Error) => {
+      showErrorToast(error);
     }
   });
 
@@ -151,6 +183,9 @@ export function Dashboard() {
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.messages(message.conversationId) });
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
       void api.markRead(message.conversationId, { messageId: message.id });
+    },
+    onError: (error: Error) => {
+      showErrorToast(error);
     }
   });
 
@@ -166,7 +201,7 @@ export function Dashboard() {
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
     },
     onError: (error: Error) => {
-      setStatus(error.message);
+      showErrorToast(error);
     }
   });
 
@@ -183,12 +218,12 @@ export function Dashboard() {
       ]);
       setSelectedConversationId(conversation.id);
       setMobileView("chat");
-      setStatus(`Joined #${conversation.name}.`);
+      showToast(`Joined #${conversation.name}.`);
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.publicRoomsRoot() });
     },
     onError: (error: Error) => {
-      setStatus(error.message);
+      showErrorToast(error);
     }
   });
 
@@ -244,7 +279,6 @@ export function Dashboard() {
     };
   }, [userMenu]);
 
-  const statusText = status || createRoom.error?.message || sendMessage.error?.message || "Ready";
   const windowTitle = selectedConversationId
     ? `Northstar Chat - ${selectedSummary?.kind === "room" ? `#${selectedConversationTitle}` : selectedConversationTitle}`
     : "Northstar Chat";
@@ -252,10 +286,10 @@ export function Dashboard() {
   const sendFriendRequestFromRoom = async (username: string) => {
     try {
       await api.sendFriendRequest({ username, message: null });
-      setStatus(`Friend request sent to ${username}.`);
+      showToast(`Friend request sent to ${username}.`);
       await queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.contacts() });
     } catch (error) {
-      setStatus((error as Error).message);
+      showErrorToast(error);
     }
   };
 
@@ -265,12 +299,12 @@ export function Dashboard() {
     }
 
     if (blockedIds.has(userId)) {
-      setStatus(`${username} is blocked. Unblock in Friends to chat again.`);
+      showToast(`${username} is blocked. Unblock in Friends to chat again.`, "error");
       return false;
     }
 
     if (!friendIds.has(userId)) {
-      setStatus(`Direct chat with ${username} needs friendship first.`);
+      showToast(`Direct chat with ${username} needs friendship first.`, "error");
       return false;
     }
 
@@ -278,7 +312,7 @@ export function Dashboard() {
       await createDirect.mutateAsync(userId);
       setMobileView("chat");
       setUtilityPanel(null);
-      setStatus(`Opened chat with ${username}.`);
+      showToast(`Opened chat with ${username}.`);
       setUserMenu(null);
       return true;
     } catch {
@@ -315,7 +349,7 @@ export function Dashboard() {
 
   const sendPoke = async (username: string) => {
     if (!selectedConversationId || !me.data?.user.username) {
-      setStatus("Open chat first.");
+      showToast("Open chat first.", "error");
       return;
     }
 
@@ -329,9 +363,9 @@ export function Dashboard() {
         refreshSelectedConversation(),
         api.markRead(selectedConversationId, { messageId: message.id })
       ]);
-      setStatus(`${username} poked.`);
+      showToast(`${username} poked.`);
     } catch (error) {
-      setStatus((error as Error).message);
+      showErrorToast(error);
     }
   };
 
@@ -342,9 +376,9 @@ export function Dashboard() {
     try {
       await action();
       await refreshSelectedConversation();
-      setStatus(successMessage);
+      showToast(successMessage);
     } catch (error) {
-      setStatus((error as Error).message);
+      showErrorToast(error);
     }
   };
 
@@ -442,10 +476,6 @@ export function Dashboard() {
             roomModals.openRoomDirectory();
             void publicRooms.refetch();
           }}
-          onOpenCreateRoom={() => {
-            roomModals.closeRoomDirectory();
-            roomModals.openCreateRoom();
-          }}
           onOpenSettings={() => setUtilityPanel("settings")}
           onOpenSocial={() => setUtilityPanel("social")}
           onSignOut={() => logout.mutate()}
@@ -476,26 +506,26 @@ export function Dashboard() {
             onDeleteMessage={async (messageId) => {
               try {
                 await api.deleteMessage(messageId);
-                setStatus("Message deleted.");
+                showToast("Message deleted.");
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() }),
                   invalidateActiveConversation(selectedConversationId)
                 ]);
               } catch (error) {
-                setStatus((error as Error).message);
+                showErrorToast(error);
                 throw error;
               }
             }}
             onEditMessage={async (messageId, body) => {
               try {
                 await api.editMessage(messageId, { body });
-                setStatus("Message updated.");
+                showToast("Message updated.");
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() }),
                   invalidateActiveConversation(selectedConversationId)
                 ]);
               } catch (error) {
-                setStatus((error as Error).message);
+                showErrorToast(error);
                 throw error;
               }
             }}
@@ -510,14 +540,14 @@ export function Dashboard() {
                 setReplyToMessageId(null);
                 roomModals.closeManageRoom();
                 setSelectedConversationId(remainingConversations[0]?.id ?? null);
-                setStatus("Left room.");
+                showToast("Left room.");
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() }),
                   queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.publicRoomsRoot() }),
                   invalidateActiveConversation(selectedConversationId)
                 ]);
               } catch (error) {
-                setStatus((error as Error).message);
+                showErrorToast(error);
                 throw error;
               }
             }}
@@ -608,11 +638,6 @@ export function Dashboard() {
           </aside>
         </div>
 
-        <div className="oldschool-statusbar live-chat-statusbar">
-          <span>{statusText}</span>
-          <span>{selectedSummary?.kind === "room" ? `${conversationDetails.data?.memberCount ?? 0} members` : "UTF-8"}</span>
-          <span>{selectedConversationId ? "connected" : "desktop draft"}</span>
-        </div>
       </div>
 
       {utilityPanel && (
@@ -625,9 +650,9 @@ export function Dashboard() {
           mode={utilityPanel}
           onAcceptFriendRequest={(requestId) => {
             void api.acceptFriendRequest(requestId).then(async () => {
-              setStatus("Friend request accepted.");
+              showToast("Friend request accepted.");
               await contacts.refetch();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onBlockUser={(userId) => {
             if (!window.confirm("Block this user?")) {
@@ -635,17 +660,17 @@ export function Dashboard() {
             }
 
             void api.blockUser(userId).then(async () => {
-              setStatus("User blocked.");
+              showToast("User blocked.");
               await refreshContactsAndConversations();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onChangeMode={setUtilityPanel}
           onChangePassword={(input, onSuccess) => {
             void api.changePassword(input.currentPassword, input.newPassword).then(() => {
-              setStatus("Password changed.");
+              showToast("Password changed.");
               onSuccess();
               void xmppAccount.refetch();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onClose={() => setUtilityPanel(null)}
           onCreateDirect={async (userId) => {
@@ -655,7 +680,7 @@ export function Dashboard() {
           onDeleteAccount={() => {
             void api.deleteAccount().then(() => {
               window.location.reload();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onRemoveFriend={(userId) => {
             if (!window.confirm("Remove this friend?")) {
@@ -663,9 +688,9 @@ export function Dashboard() {
             }
 
             void api.removeFriend(userId).then(async () => {
-              setStatus("Friend removed.");
+              showToast("Friend removed.");
               await refreshContactsAndConversations();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onRefreshContacts={() => {
             void contacts.refetch();
@@ -681,38 +706,56 @@ export function Dashboard() {
           }}
           onProvisionXmppAccount={(currentPassword, onSuccess) => {
             void api.provisionXmppAccount(currentPassword).then(async () => {
-              setStatus("Jabber account synced.");
+              showToast("Jabber account synced.");
               onSuccess();
               await xmppAccount.refetch();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onRevokeSession={(sessionId) => {
             void api.revokeSession(sessionId).then(async () => {
-              setStatus("Session revoked.");
+              showToast("Session revoked.");
               await sessions.refetch();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           onSendFriendRequest={(input, onSuccess, onError) => {
             void api.sendFriendRequest(input).then(() => {
-              setStatus(`Friend request sent to ${input.username}.`);
+              showToast(`Friend request sent to ${input.username}.`);
               onSuccess();
               contacts.refetch();
             }).catch((error: Error) => {
-              setStatus(error.message);
+              showErrorToast(error);
               onError(error);
             });
           }}
           onUnblockUser={(userId) => {
             void api.unblockUser(userId).then(async () => {
-              setStatus("User unblocked.");
+              showToast("User unblocked.");
               await refreshContactsAndConversations();
-            }).catch((error: Error) => setStatus(error.message));
+            }).catch((error: Error) => showErrorToast(error));
           }}
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
           xmppAccount={xmppAccount.data}
           xmppStatus={xmppStatus.data}
         />
+      )}
+
+      {toasts.length > 0 && (
+        <div className="oldschool-toast-viewport" aria-live="polite" aria-atomic="true">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`oldschool-toast oldschool-bevel ${toast.tone}`}>
+              <span>{toast.message}</span>
+              <button
+                type="button"
+                className="oldschool-toast-close"
+                onClick={() => dismissToast(toast.id)}
+                aria-label="Dismiss notification"
+              >
+                X
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       {roomModals.roomDirectoryOpen && (

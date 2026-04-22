@@ -920,7 +920,8 @@ label {
 
 .oldschool-page button,
 .oldschool-page input,
-.oldschool-page select {
+.oldschool-page select,
+.oldschool-page textarea {
   border-radius: 0;
   font-size: 0.95rem;
 }
@@ -1084,7 +1085,8 @@ label {
 }
 
 .oldschool-page input:focus,
-.oldschool-page select:focus {
+.oldschool-page select:focus,
+.oldschool-page textarea:focus {
   outline: 1px dotted #111;
   outline-offset: -4px;
   border-color: #787878 #f7f7f7 #f7f7f7 #787878;
@@ -1225,20 +1227,36 @@ label {
 
 .oldschool-composer {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.32rem;
+  padding: 0.3rem 0.35rem;
+  border-width: 1px;
+  box-shadow: none;
 }
 
-.oldschool-composer-label {
-  min-width: 4rem;
-  font-weight: 700;
+.oldschool-composer-main-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: end;
 }
 
-.oldschool-grow {
-  flex: 1 1 auto;
-}
-
-.oldschool-composer-row.small {
+.oldschool-composer-actions {
+  position: relative;
+  display: inline-flex;
+  gap: 0.28rem;
   align-items: center;
+}
+
+.oldschool-file-picker-icon {
+  cursor: pointer;
+}
+
+.oldschool-file-picker-icon input {
+  display: none;
+}
+
+.oldschool-send-button {
+  min-width: 2rem;
 }
 
 .oldschool-members {
@@ -1291,18 +1309,21 @@ label {
 
 .oldschool-dialog-body {
   display: grid;
-  gap: 0.7rem;
-  padding: 0.7rem;
+  min-height: 0;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .oldschool-dialog-tabs {
-  padding: 0.55rem 0.7rem 0;
+  padding: 0.4rem 0.5rem 0;
 }
 
 .oldschool-group {
-  padding: 0.6rem;
+  padding: 0.45rem;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .oldschool-group.danger {
@@ -1398,7 +1419,7 @@ label {
   height: calc(var(--viewport-height) - 0.4rem);
   min-height: calc(var(--viewport-height) - 0.4rem);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -1458,27 +1479,7 @@ label {
 }
 
 .live-chat-workspace .oldschool-sidebar {
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
-}
-
-.oldschool-friend-request-bar {
-  width: 100%;
-  padding: 0.28rem 0.45rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  justify-content: space-between;
-  text-align: left;
-  background: #fff;
-}
-
-.oldschool-footer-flag {
-  min-width: 1.4rem;
-  padding: 0.08rem 0.22rem;
-  display: inline-flex;
-  justify-content: center;
-  color: #fff;
-  background: #0b4ea2;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .oldschool-public-row {
@@ -1498,6 +1499,26 @@ label {
   padding: 0.45rem;
   color: #444;
   font-size: 0.88rem;
+}
+
+.oldschool-sidebar-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.38rem;
+  align-items: center;
+}
+
+.oldschool-social-launch {
+  position: relative;
+}
+
+.oldschool-social-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1rem;
+  font-size: 0.7rem;
+  line-height: 1.15;
 }
 
 .oldschool-chat-title-row {
@@ -1610,6 +1631,11 @@ label {
   background: #9f2d2d;
 }
 
+.oldschool-icon-button.active {
+  color: #fff;
+  background: #0b4ea2;
+}
+
 .oldschool-inline-quote {
   padding: 0.28rem 0.42rem;
   display: grid;
@@ -1648,6 +1674,68 @@ label {
 .oldschool-inline-editor textarea,
 .live-message-input {
   resize: vertical;
+}
+
+.live-message-input {
+  min-height: 2.8rem;
+  max-height: 9rem;
+  padding: 0.34rem 0.42rem;
+  border-width: 1px;
+}
+
+.oldschool-emoji-picker {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.28rem);
+  z-index: 20;
+  width: min(320px, calc(100vw - 1.5rem));
+  max-height: 240px;
+  padding: 0.24rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2rem;
+  overflow: auto;
+  background: #c0c0c0;
+}
+
+.oldschool-emoji-option {
+  padding: 0.18rem 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  justify-content: flex-start;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.oldschool-emoji-option:hover,
+.oldschool-emoji-option:focus-visible {
+  background: #e7eefb;
+}
+
+.oldschool-legacy-emoji {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.18rem;
+  height: 1.18rem;
+  margin: 0 0.04rem;
+  padding: 0 0.14rem;
+  border: 1px solid #a06f00;
+  line-height: 1;
+  vertical-align: text-bottom;
+}
+
+.oldschool-legacy-emoji.face {
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 28%, #fff8cb, #ffd75d 68%, #c99800 100%);
+}
+
+.oldschool-legacy-emoji.symbol {
+  border-radius: 0.3rem;
+  background: #fff3be;
 }
 
 .oldschool-attachment-stack,
@@ -1782,29 +1870,38 @@ label {
 }
 
 .live-floating-window {
-  background: transparent;
+  background: rgba(8, 20, 50, 0.38);
   align-items: start;
-  padding-top: 2.4rem;
+  justify-items: center;
+  overflow: auto;
+  padding: 0.75rem;
+  padding-top: 0.9rem;
 }
 
 .live-floating-window .oldschool-dialog {
-  width: min(920px, calc(100vw - 1rem));
+  width: min(820px, calc(100vw - 1rem));
+  max-width: 100%;
+  max-height: calc(var(--viewport-height) - 1.5rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 0.9rem;
 }
 
 .social-window .oldschool-dialog {
-  width: min(790px, calc(100vw - 1rem));
+  width: min(700px, calc(100vw - 1rem));
 }
 
 .settings-window .oldschool-dialog {
-  width: min(760px, calc(100vw - 1rem));
+  width: min(660px, calc(100vw - 1rem));
 }
 
 .jabber-window .oldschool-dialog {
-  width: min(980px, calc(100vw - 1rem));
+  width: min(860px, calc(100vw - 1rem));
 }
 
 .room-window .oldschool-dialog {
-  width: min(980px, calc(100vw - 1rem));
+  width: min(860px, calc(100vw - 1rem));
 }
 
 .oldschool-social-row {
@@ -1835,6 +1932,34 @@ label {
   color: #7c1818;
   border: 1px solid #b98989;
   background: #f3dddd;
+}
+
+.oldschool-toast-viewport {
+  position: fixed;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 90;
+  display: grid;
+  gap: 0.35rem;
+  width: min(340px, calc(100vw - 1rem));
+}
+
+.oldschool-toast {
+  padding: 0.3rem 0.38rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: start;
+  background: #d4d0c8;
+}
+
+.oldschool-toast.error {
+  background: #d7c7c7;
+}
+
+.oldschool-toast-close {
+  min-width: 1.4rem;
+  padding: 0.08rem 0.22rem;
 }
 
 .oldschool-jabber-grid {
@@ -1959,7 +2084,6 @@ label {
 .live-chat-page .oldschool-public-action:active:not(:disabled),
 .live-chat-page .oldschool-context-action:active:not(:disabled),
 .live-chat-page .oldschool-icon-button:active:not(:disabled),
-.live-chat-page .oldschool-friend-request-bar:active:not(:disabled),
 .live-chat-page .oldschool-member-identity:active:not(:disabled),
 .live-chat-page .oldschool-inline-image-link:active:not(:disabled),
 .live-chat-page .oldschool-menu-item:active:not(:disabled) {
@@ -2020,11 +2144,12 @@ label {
   }
 
   .live-floating-window {
-    padding-top: 0.6rem;
+    padding-top: 0.5rem;
   }
 
   .live-floating-window .oldschool-dialog {
     width: calc(100vw - 1rem);
+    max-height: calc(var(--viewport-height) - 1rem);
   }
 }
 
@@ -2056,7 +2181,15 @@ label {
     grid-template-columns: 1.2rem minmax(0, 1fr);
   }
 
-  .live-chat-statusbar {
+  .oldschool-emoji-picker {
     grid-template-columns: 1fr;
+    width: min(260px, calc(100vw - 1rem));
+  }
+
+  .oldschool-toast-viewport {
+    right: 0.3rem;
+    left: 0.3rem;
+    bottom: 0.3rem;
+    width: auto;
   }
 }

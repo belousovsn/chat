@@ -32,14 +32,26 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
 
   return (
     <aside className="oldschool-sidebar oldschool-bevel" aria-label="Chats">
-      <label className="oldschool-field">
-        <span>Quick filter</span>
+      <div className="oldschool-sidebar-top">
         <input
+          aria-label="Quick filter"
           value={chatSearch}
           onChange={(event) => setChatSearch(event.target.value)}
-          placeholder="#general or username"
+          placeholder="Quick filter"
         />
-      </label>
+        <button
+          type="button"
+          className="oldschool-icon-button oldschool-social-launch"
+          onClick={props.onOpenSocial}
+          title="Friend requests"
+          aria-label={props.requestCount > 0
+            ? `Friend requests (${props.requestCount})`
+            : "Friend requests"}
+        >
+          <span aria-hidden="true">{"\uD83D\uDC64"}</span>
+          {props.requestCount > 0 && <span className="oldschool-room-badge oldschool-social-badge">{props.requestCount}</span>}
+        </button>
+      </div>
 
       <div className="oldschool-list oldschool-inset">
         {filteredConversations.length > 0 ? filteredConversations.map((conversation) => {
@@ -76,17 +88,6 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
               : "No chats yet. Open Rooms from the top menu to find a place to chat."}
           </div>
         )}
-      </div>
-
-      <button type="button" className="oldschool-friend-request-bar oldschool-inset" onClick={props.onOpenSocial}>
-        <span className="oldschool-footer-flag">FR</span>
-        <strong>Friend requests</strong>
-        <span className="oldschool-room-badge">{props.requestCount}</span>
-      </button>
-
-      <div className="oldschool-sidebar-footer oldschool-inset">
-        <span>{filteredConversations.length} visible</span>
-        <span>Recent conversations</span>
       </div>
     </aside>
   );
