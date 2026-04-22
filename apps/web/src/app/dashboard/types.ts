@@ -1,6 +1,7 @@
 import { api } from "../../lib/api";
 
 export type ContactsData = Awaited<ReturnType<typeof api.contacts>>;
+export type ContactBlocked = ContactsData["blocked"][number];
 export type ContactFriend = ContactsData["friends"][number];
 export type ContactRequest = ContactsData["requests"][number];
 export type ConversationDetails = Awaited<ReturnType<typeof api.conversation>>;

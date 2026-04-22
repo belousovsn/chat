@@ -54,10 +54,15 @@ export function useDashboardData(args: UseDashboardDataArgs) {
     }
 
     const selectionStillExists = conversations.data.some((conversation) => conversation.id === selectedConversationId);
-    if (!selectedConversationId || !selectionStillExists) {
+    if (!selectedConversationId) {
+      setSelectedConversationId(conversations.data[0]?.id ?? null);
+      return;
+    }
+
+    if (!selectionStillExists && !conversations.isFetching) {
       setSelectedConversationId(conversations.data[0]?.id ?? null);
     }
-  }, [conversations.data, selectedConversationId, setSelectedConversationId]);
+  }, [conversations.data, conversations.isFetching, selectedConversationId, setSelectedConversationId]);
 
   const selectedSummary = useMemo(
     () => conversations.data?.find((conversation) => conversation.id === selectedConversationId) ?? null,

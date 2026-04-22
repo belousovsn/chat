@@ -38,6 +38,13 @@ export const contactFriendSchema = z.object({
   since: z.string()
 });
 
+export const contactBlockedSchema = z.object({
+  id: z.string().uuid(),
+  username: z.string(),
+  presence: z.enum(["online", "afk", "offline"]),
+  blockedAt: z.string()
+});
+
 export const contactRequestSchema = z.object({
   id: z.string().uuid(),
   message: z.string().nullable(),
@@ -49,6 +56,7 @@ export const contactRequestSchema = z.object({
 });
 
 export const contactsResponseSchema = z.object({
+  blocked: z.array(contactBlockedSchema),
   friends: z.array(contactFriendSchema),
   requests: z.array(contactRequestSchema)
 });
@@ -155,6 +163,7 @@ export const markReadInputSchema = z.object({
 
 export type Member = z.infer<typeof memberSchema>;
 export type ContactFriend = z.infer<typeof contactFriendSchema>;
+export type ContactBlocked = z.infer<typeof contactBlockedSchema>;
 export type ContactRequest = z.infer<typeof contactRequestSchema>;
 export type ContactsResponse = z.infer<typeof contactsResponseSchema>;
 export type PublicRoom = z.infer<typeof publicRoomSchema>;

@@ -1,5 +1,6 @@
 type DashboardToolbarProps = {
   onOpenJabber: () => void;
+  onOpenRooms: () => void;
   onOpenCreateRoom: () => void;
   onOpenSettings: () => void;
   onOpenSocial: () => void;
@@ -21,7 +22,8 @@ export function DashboardToolbar(props: DashboardToolbarProps) {
       </div>
 
       <nav className="oldschool-menubar live-menubar" aria-label="Main menu">
-        <button type="button" className="oldschool-menu-item" onClick={props.onOpenCreateRoom}>Rooms</button>
+        <button type="button" className="oldschool-menu-item" onClick={props.onOpenRooms}>Rooms</button>
+        <button type="button" className="oldschool-menu-item" onClick={props.onOpenCreateRoom}>+</button>
         <button type="button" className="oldschool-menu-item" onClick={props.onOpenSocial}>Friends</button>
         {props.showJabber && <button type="button" className="oldschool-menu-item" onClick={props.onOpenJabber}>Jabber</button>}
         <button type="button" className="oldschool-menu-item" onClick={props.onOpenSettings}>Settings</button>

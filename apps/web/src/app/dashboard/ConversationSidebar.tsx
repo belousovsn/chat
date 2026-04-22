@@ -1,27 +1,18 @@
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import type { ConversationSummary, PublicRoom } from "./types";
-
-type SidebarView = "chats" | "rooms";
+import type { ConversationSummary } from "./types";
 
 type ConversationSidebarProps = {
   conversations: ConversationSummary[] | undefined;
-  onJoinRoom: (roomId: string) => void;
-  onOpenCreateRoom: () => void;
   onOpenSocial: () => void;
   onSelectConversation: (conversationId: string) => void;
-  publicRooms: PublicRoom[] | undefined;
-  publicSearch: string;
   requestCount: number;
   selectedConversationId: string | null;
-  setPublicSearch: (value: string) => void;
 };
 
 export function ConversationSidebar(props: ConversationSidebarProps) {
-  const [activeView, setActiveView] = useState<SidebarView>("chats");
   const [chatSearch, setChatSearch] = useState("");
   const normalizedChatSearch = chatSearch.trim().toLowerCase();
-  const normalizedPublicSearch = props.publicSearch.trim().toLowerCase();
 
   const filteredConversations = useMemo(() => {
     if (!normalizedChatSearch) {
@@ -39,59 +30,19 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
     });
   }, [normalizedChatSearch, props.conversations]);
 
-  const filteredPublicRooms = useMemo(() => {
-    if (!normalizedPublicSearch) {
-      return props.publicRooms ?? [];
-    }
-
-    return (props.publicRooms ?? []).filter((room) => (
-      room.name.toLowerCase().includes(normalizedPublicSearch)
-      || String(room.description ?? "").toLowerCase().includes(normalizedPublicSearch)
-    ));
-  }, [normalizedPublicSearch, props.publicRooms]);
-
-  const activeCount = activeView === "chats" ? filteredConversations.length : filteredPublicRooms.length;
-
   return (
-    <aside className="oldschool-sidebar oldschool-bevel">
-      <div className="oldschool-pane-title">Chats and channels</div>
-
-      <div className="oldschool-tabstrip" role="tablist" aria-label="Sidebar areas">
-        <button
-          type="button"
-          className={clsx("oldschool-mini-tab", { active: activeView === "chats" })}
-          onClick={() => setActiveView("chats")}
-        >
-          Chats
-        </button>
-        <button
-          type="button"
-          className={clsx("oldschool-mini-tab", { active: activeView === "rooms" })}
-          onClick={() => setActiveView("rooms")}
-        >
-          Rooms
-        </button>
-        <button type="button" className="oldschool-mini-tab" onClick={props.onOpenCreateRoom}>+</button>
-      </div>
-
+    <aside className="oldschool-sidebar oldschool-bevel" aria-label="Chats">
       <label className="oldschool-field">
         <span>Quick filter</span>
         <input
-          value={activeView === "chats" ? chatSearch : props.publicSearch}
-          onChange={(event) => {
-            if (activeView === "chats") {
-              setChatSearch(event.target.value);
-              return;
-            }
-
-            props.setPublicSearch(event.target.value);
-          }}
-          placeholder={activeView === "chats" ? "#programming" : "public rooms"}
+          value={chatSearch}
+          onChange={(event) => setChatSearch(event.target.value)}
+          placeholder="#general or username"
         />
       </label>
 
       <div className="oldschool-list oldschool-inset">
-        {activeView === "chats" && filteredConversations.length > 0 ? filteredConversations.map((conversation) => {
+        {filteredConversations.length > 0 ? filteredConversations.map((conversation) => {
           const title = conversation.kind === "direct"
             ? conversation.directPeer?.username ?? conversation.name
             : `#${conversation.name}`;
@@ -118,27 +69,12 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
           );
         }) : null}
 
-        {activeView === "rooms" && filteredPublicRooms.length > 0 ? filteredPublicRooms.map((room) => (
-          <div key={String(room.id)} className="oldschool-room-row oldschool-public-row">
-            <span className="oldschool-room-time">{room.member_count}</span>
-            <span className="oldschool-room-name">#{String(room.name)}</span>
-            <span className="oldschool-room-note">{String(room.description ?? "Open room")}</span>
-            <button
-              type="button"
-              className="oldschool-public-action"
-              onClick={() => props.onJoinRoom(String(room.id))}
-              disabled={Boolean(room.is_member)}
-            >
-              {room.is_member ? "Joined" : "Join"}
-            </button>
+        {filteredConversations.length === 0 && (
+          <div className="oldschool-empty-note">
+            {normalizedChatSearch
+              ? "No chats match this filter."
+              : "No chats yet. Open Rooms from the top menu to find a place to chat."}
           </div>
-        )) : null}
-
-        {activeView === "chats" && filteredConversations.length === 0 && (
-          <div className="oldschool-empty-note">No chats match this filter.</div>
-        )}
-        {activeView === "rooms" && filteredPublicRooms.length === 0 && (
-          <div className="oldschool-empty-note">No rooms found.</div>
         )}
       </div>
 
@@ -149,8 +85,8 @@ export function ConversationSidebar(props: ConversationSidebarProps) {
       </button>
 
       <div className="oldschool-sidebar-footer oldschool-inset">
-        <span>{activeCount} visible</span>
-        <span>{activeView === "chats" ? "Recent conversations" : "Public room directory"}</span>
+        <span>{filteredConversations.length} visible</span>
+        <span>Recent conversations</span>
       </div>
     </aside>
   );

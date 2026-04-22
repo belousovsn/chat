@@ -1,6 +1,81 @@
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import type { ConversationDetails, RoomBan } from "./types";
+import type { ConversationDetails, PublicRoom, RoomBan } from "./types";
+
+export function RoomDirectoryModal(props: {
+  onClose: () => void;
+  onJoinRoom: (roomId: string) => void;
+  onOpenCreateRoom: () => void;
+  onOpenRoom: (roomId: string) => void;
+  onRefreshRooms: () => void;
+  publicRooms: PublicRoom[] | undefined;
+  publicSearch: string;
+  selectedConversationId: string | null;
+  setPublicSearch: (value: string) => void;
+}) {
+  return (
+    <div className="oldschool-overlay live-floating-window room-window">
+      <section className="oldschool-dialog oldschool-bevel">
+        <div className="oldschool-titlebar">
+          <span>Rooms Window</span>
+          <button type="button" className="oldschool-titlebar-close" onClick={props.onClose}>X</button>
+        </div>
+
+        <div className="oldschool-dialog-body oldschool-room-directory-body">
+          <section className="oldschool-group oldschool-bevel">
+            <div className="oldschool-inline-form oldschool-room-directory-toolbar">
+              <strong>Available rooms</strong>
+              <span className="oldschool-status-text">{props.publicRooms?.length ?? 0} public rooms</span>
+              <span className="oldschool-room-directory-spacer" />
+              <button type="button" className="oldschool-button active" onClick={props.onOpenCreateRoom}>Create new room</button>
+              <button type="button" className="oldschool-button" onClick={props.onRefreshRooms}>Refresh</button>
+            </div>
+
+            <label className="oldschool-field">
+              <span>Find room</span>
+              <input
+                value={props.publicSearch}
+                onChange={(event) => props.setPublicSearch(event.target.value)}
+                placeholder="public rooms"
+              />
+            </label>
+
+            <div className="oldschool-list oldschool-inset compact">
+              {props.publicRooms === undefined ? (
+                <div className="oldschool-empty-note">Loading rooms...</div>
+              ) : props.publicRooms.length ? props.publicRooms.map((room) => (
+                <div
+                  key={String(room.id)}
+                  className={`oldschool-room-row oldschool-public-row ${props.selectedConversationId === String(room.id) ? "selected" : ""}`}
+                >
+                  <span className="oldschool-room-time">{room.member_count}</span>
+                  <span className="oldschool-room-name">#{String(room.name)}</span>
+                  <span className="oldschool-room-note">{String(room.description ?? "Open room")}</span>
+                  <button
+                    type="button"
+                    className="oldschool-public-action"
+                    onClick={() => {
+                      if (room.is_member) {
+                        props.onOpenRoom(String(room.id));
+                        return;
+                      }
+
+                      props.onJoinRoom(String(room.id));
+                    }}
+                  >
+                    {room.is_member ? "Open" : "Join"}
+                  </button>
+                </div>
+              )) : (
+                <div className="oldschool-empty-note">No rooms found. Create one to start chatting.</div>
+              )}
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 export function CreateRoomModal(props: {
   onClose: () => void;
