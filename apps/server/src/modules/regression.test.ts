@@ -34,6 +34,7 @@ type ServerDeps = {
   pool: typeof import("../db/client.js").pool;
   schema: typeof import("../db/schema.js");
   assistantService: typeof import("./assistant/service.js");
+  contactsService: typeof import("./contacts/service.js");
   messagesService: typeof import("./messages/service.js");
   conversationsService: typeof import("./conversations/service.js");
   HttpError: typeof import("../lib/http.js").HttpError;
@@ -80,10 +81,11 @@ const ensureDatabaseAvailable = async (t: { skip: (message?: string) => void }) 
 
 const loadDeps = async (): Promise<ServerDeps> => {
   depsPromise ??= (async () => {
-    const [{ db, pool }, schema, assistantService, messagesService, conversationsService, { HttpError }] = await Promise.all([
+    const [{ db, pool }, schema, assistantService, contactsService, messagesService, conversationsService, { HttpError }] = await Promise.all([
       import("../db/client.js"),
       import("../db/schema.js"),
       import("./assistant/service.js"),
+      import("./contacts/service.js"),
       import("./messages/service.js"),
       import("./conversations/service.js"),
       import("../lib/http.js")
@@ -94,6 +96,7 @@ const loadDeps = async (): Promise<ServerDeps> => {
       pool,
       schema,
       assistantService,
+      contactsService,
       messagesService,
       conversationsService,
       HttpError
@@ -437,6 +440,51 @@ test("realtime recipients drop blocked direct conversations even if membership r
 
     const afterBlock = await scenario.conversationsService.listRealtimeRecipientUserIds(directConversationId);
     assert.deepEqual(afterBlock, []);
+  } finally {
+    await scenario.cleanup();
+  }
+});
+
+test("blocking keeps contact recoverable and unblock restores direct visibility", async (t) => {
+  if (!(await ensureDatabaseAvailable(t))) {
+    return;
+  }
+  const scenario = await createScenario();
+
+  try {
+    const left = await scenario.createUser("block_left");
+    const right = await scenario.createUser("block_right");
+
+    await scenario.createFriendship(left.record.id, right.record.id);
+    const directConversationId = await scenario.conversationsService.getOrCreateDirectConversation(left.auth, right.record.id);
+    scenario.trackConversationId(directConversationId);
+
+    await scenario.contactsService.blockUser(left.auth, right.record.id);
+
+    const contactsWhileBlocked = await scenario.contactsService.listContacts(left.auth);
+    assert.equal(contactsWhileBlocked.friends.some((friend) => friend.id === right.record.id), true);
+    assert.equal(contactsWhileBlocked.blocked.some((blocked) => blocked.id === right.record.id), true);
+
+    const [friendship] = await scenario.db.select().from(scenario.schema.friendships).where(and(
+      eq(scenario.schema.friendships.userAId, left.record.id < right.record.id ? left.record.id : right.record.id),
+      eq(scenario.schema.friendships.userBId, left.record.id < right.record.id ? right.record.id : left.record.id)
+    ));
+    assert.ok(friendship);
+
+    const blockedRecipients = await scenario.conversationsService.listRealtimeRecipientUserIds(directConversationId);
+    assert.deepEqual(blockedRecipients, []);
+
+    await scenario.contactsService.unblockUser(left.auth, right.record.id);
+
+    const contactsAfterUnblock = await scenario.contactsService.listContacts(left.auth);
+    assert.equal(contactsAfterUnblock.blocked.some((blocked) => blocked.id === right.record.id), false);
+    assert.equal(contactsAfterUnblock.friends.some((friend) => friend.id === right.record.id), true);
+
+    const restoredRecipients = await scenario.conversationsService.listRealtimeRecipientUserIds(directConversationId);
+    assert.deepEqual(restoredRecipients.sort(), [left.record.id, right.record.id].sort());
+
+    const [conversation] = await scenario.db.select().from(scenario.schema.conversations).where(eq(scenario.schema.conversations.id, directConversationId));
+    assert.equal(conversation?.isFrozen, false);
   } finally {
     await scenario.cleanup();
   }

@@ -12,6 +12,18 @@ import { HttpError } from "../../lib/http.js";
 
 const normalizePair = (left: string, right: string): [string, string] => left < right ? [left, right] : [right, left];
 
+const listSharedDirectConversationIds = async (leftUserId: string, rightUserId: string) => {
+  const rows = await db.execute(sql`
+    select c.id
+    from conversations c
+    join conversation_members cm1 on cm1.conversation_id = c.id and cm1.user_id = ${leftUserId}
+    join conversation_members cm2 on cm2.conversation_id = c.id and cm2.user_id = ${rightUserId}
+    where c.kind = 'direct'
+  `);
+
+  return (rows.rows as Array<{ id: string }>).map((row) => row.id);
+};
+
 export const listContacts = async (auth: AuthSession) => {
   const friendshipsRows = await db.execute(sql`
     select
@@ -46,7 +58,20 @@ export const listContacts = async (auth: AuthSession) => {
     order by fr.created_at desc
   `);
 
+  const blockedRows = await db.execute(sql`
+    select
+      u.id,
+      u.username,
+      u.presence,
+      ub.created_at as "blockedAt"
+    from user_blocks ub
+    join users u on u.id = ub.blocked_id
+    where ub.blocker_id = ${auth.user.id}
+    order by u.username asc
+  `);
+
   return {
+    blocked: blockedRows.rows,
     friends: friendshipsRows.rows,
     requests: pendingRows.rows
   };
@@ -101,18 +126,31 @@ export const blockUser = async (auth: AuthSession, userId: string) => {
     throw new HttpError(400, "Cannot block yourself");
   }
   await db.insert(userBlocks).values({ blockerId: auth.user.id, blockedId: userId }).onConflictDoNothing();
-  const [userAId, userBId] = normalizePair(auth.user.id, userId);
-  await db.delete(friendships).where(and(eq(friendships.userAId, userAId), eq(friendships.userBId, userBId)));
 
-  const directConversations = await db.execute(sql`
-    select c.id
-    from conversations c
-    join conversation_members cm1 on cm1.conversation_id = c.id and cm1.user_id = ${auth.user.id}
-    join conversation_members cm2 on cm2.conversation_id = c.id and cm2.user_id = ${userId}
-    where c.kind = 'direct'
-  `);
+  for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {
+    await db.update(conversations).set({ isFrozen: true, updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+  }
+};
 
-  for (const row of directConversations.rows as Array<{ id: string }>) {
-    await db.update(conversations).set({ isFrozen: true, updatedAt: new Date() }).where(eq(conversations.id, row.id));
+export const unblockUser = async (auth: AuthSession, userId: string) => {
+  if (userId === auth.user.id) {
+    throw new HttpError(400, "Cannot unblock yourself");
+  }
+
+  await db.delete(userBlocks).where(and(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, userId)));
+
+  const remainingBlocks = await db.select().from(userBlocks).where(
+    or(
+      and(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, userId)),
+      and(eq(userBlocks.blockerId, userId), eq(userBlocks.blockedId, auth.user.id))
+    )
+  );
+
+  if (remainingBlocks.length > 0) {
+    return;
+  }
+
+  for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {
+    await db.update(conversations).set({ isFrozen: false, updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   }
 };

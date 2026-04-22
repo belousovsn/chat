@@ -59,6 +59,7 @@ export const api = {
   acceptFriendRequest: (requestId: string) => request(`/api/contacts/requests/${requestId}/accept`, "POST"),
   removeFriend: (userId: string) => request(`/api/contacts/${userId}`, "DELETE"),
   blockUser: (userId: string) => request(`/api/contacts/${userId}/block`, "POST"),
+  unblockUser: (userId: string) => request(`/api/contacts/${userId}/block`, "DELETE"),
   conversations: () => request<RoomSummary[]>("/api/conversations"),
   conversation: (id: string) => request<RoomDetails>(`/api/conversations/${id}`),
   publicRooms: (search?: string) => request<PublicRoom[]>(`/api/rooms/public${search ? `?search=${encodeURIComponent(search)}` : ""}`),

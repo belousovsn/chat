@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
 import type {
+  ContactBlocked,
   ContactFriend,
   ContactRequest,
   ConversationMember,
@@ -12,6 +13,7 @@ export type UtilityPanelMode = "details" | "social" | "settings" | "jabber";
 type SocialTab = "requests" | "friends" | "add";
 
 type InfoSidebarProps = {
+  blocked: ContactBlocked[] | undefined;
   conversationTitle: string;
   friends: ContactFriend[] | undefined;
   meUserId: string | undefined;
@@ -30,6 +32,7 @@ type InfoSidebarProps = {
   onRemoveFriend: (userId: string) => void;
   onRevokeSession: (sessionId: string) => void;
   onSendFriendRequest: (input: { message: string; username: string }, onSuccess: () => void, onError: (error: Error) => void) => void;
+  onUnblockUser: (userId: string) => void;
   requests: ContactRequest[] | undefined;
   sessions: SessionEntry[] | undefined;
   xmppStatus: XmppStatus | undefined;
@@ -41,22 +44,56 @@ export function InfoSidebar(props: InfoSidebarProps) {
   const [socialError, setSocialError] = useState("");
   const [socialTab, setSocialTab] = useState<SocialTab>("requests");
 
-  const filteredFriends = useMemo(() => {
+  const filteredContacts = useMemo(() => {
     const search = friendSearch.trim().toLowerCase();
-    if (!search) {
-      return props.friends ?? [];
+    const merged = new Map<string, {
+      blockedAt: string | null;
+      id: string;
+      isBlocked: boolean;
+      isFriend: boolean;
+      presence: string;
+      username: string;
+    }>();
+
+    for (const friend of props.friends ?? []) {
+      merged.set(friend.id, {
+        blockedAt: null,
+        id: friend.id,
+        isBlocked: false,
+        isFriend: true,
+        presence: friend.presence,
+        username: friend.username
+      });
     }
 
-    return (props.friends ?? []).filter((friend) => (
-      friend.username.toLowerCase().includes(search)
-      || friend.presence.toLowerCase().includes(search)
+    for (const blocked of props.blocked ?? []) {
+      const existing = merged.get(blocked.id);
+      merged.set(blocked.id, {
+        blockedAt: blocked.blockedAt,
+        id: blocked.id,
+        isBlocked: true,
+        isFriend: existing?.isFriend ?? false,
+        presence: blocked.presence,
+        username: blocked.username
+      });
+    }
+
+    const items = [...merged.values()].sort((left, right) => left.username.localeCompare(right.username));
+    if (!search) {
+      return items;
+    }
+
+    return items.filter((contact) => (
+      contact.username.toLowerCase().includes(search)
+      || contact.presence.toLowerCase().includes(search)
+      || (contact.isBlocked && "blocked".includes(search))
     ));
-  }, [friendSearch, props.friends]);
+  }, [friendSearch, props.blocked, props.friends]);
 
   const socialWindowTitle = socialTab === "requests"
     ? "Friends Requests Window"
     : socialTab === "friends"
-      ? "Friends List Window"
+      ? "Contacts Window"
       : "Add Friend Window";
 
   if (props.mode === "social") {
@@ -143,29 +180,38 @@ export function InfoSidebar(props: InfoSidebarProps) {
                   <button type="button" className="oldschool-button" onClick={props.onRefreshContacts}>Refresh</button>
                 </div>
                 <div className="oldschool-list oldschool-inset compact">
-                  {filteredFriends.length ? filteredFriends.map((friend) => (
-                    <div key={friend.id} className="oldschool-social-row">
+                  {filteredContacts.length ? filteredContacts.map((contact) => (
+                    <div key={contact.id} className="oldschool-social-row">
                       <div>
-                        <strong>{friend.username}</strong>
-                        <span>{friend.presence}</span>
+                        <strong>{contact.username}</strong>
+                        <span>{contact.isBlocked ? `${contact.presence} · blocked` : contact.presence}</span>
                       </div>
                       <div className="oldschool-inline-form">
-                        <button
-                          type="button"
-                          className="oldschool-button"
-                          onClick={() => {
-                            setSocialError("");
-                            void props.onCreateDirect(friend.id, friend.username);
-                          }}
-                        >
-                          Chat
-                        </button>
-                        <button type="button" className="oldschool-button" onClick={() => props.onRemoveFriend(friend.id)}>Remove</button>
-                        <button type="button" className="oldschool-button oldschool-danger-button" onClick={() => props.onBlockUser(friend.id)}>Block</button>
+                        {contact.isBlocked ? (
+                          <button type="button" className="oldschool-button" onClick={() => props.onUnblockUser(contact.id)}>Unblock</button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="oldschool-button"
+                              onClick={() => {
+                                setSocialError("");
+                                void props.onCreateDirect(contact.id, contact.username);
+                              }}
+                            >
+                              Chat
+                            </button>
+                            <button type="button" className="oldschool-button" onClick={() => props.onRemoveFriend(contact.id)}>Remove</button>
+                            <button type="button" className="oldschool-button oldschool-danger-button" onClick={() => props.onBlockUser(contact.id)}>Block</button>
+                          </>
+                        )}
+                        {contact.isBlocked && contact.isFriend && (
+                          <button type="button" className="oldschool-button" onClick={() => props.onRemoveFriend(contact.id)}>Remove</button>
+                        )}
                       </div>
                     </div>
                   )) : (
-                    <div className="oldschool-empty-note">No friends match this search.</div>
+                    <div className="oldschool-empty-note">No contacts match this search.</div>
                   )}
                 </div>
               </section>

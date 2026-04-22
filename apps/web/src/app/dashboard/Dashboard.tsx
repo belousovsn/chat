@@ -6,8 +6,8 @@ import { ChatPanel } from "./ChatPanel";
 import { ConversationSidebar } from "./ConversationSidebar";
 import { DashboardToolbar } from "./DashboardToolbar";
 import { InfoSidebar, type UtilityPanelMode } from "./InfoSidebar";
-import { CreateRoomModal, ManageRoomModal } from "./RoomModals";
-import type { ConversationMember } from "./types";
+import { CreateRoomModal, ManageRoomModal, RoomDirectoryModal } from "./RoomModals";
+import type { ConversationDetails, ConversationMember, ConversationSummary } from "./types";
 import { useDashboardData } from "./hooks/useDashboardData";
 import { useDashboardRealtime } from "./hooks/useDashboardRealtime";
 import { useRoomModalState } from "./hooks/useRoomModalState";
@@ -22,6 +22,21 @@ type UserMenuState = {
   x: number;
   y: number;
 };
+
+const toConversationSummary = (conversation: ConversationDetails): ConversationSummary => ({
+  description: conversation.description,
+  directPeer: conversation.directPeer,
+  id: conversation.id,
+  isFrozen: conversation.isFrozen,
+  kind: conversation.kind,
+  lastMessageAt: conversation.lastMessageAt,
+  memberCount: conversation.memberCount,
+  name: conversation.name,
+  ownerId: conversation.ownerId,
+  unreadCount: conversation.unreadCount,
+  unreadMentionCount: conversation.unreadMentionCount,
+  visibility: conversation.visibility
+});
 
 export function Dashboard() {
   const queryClient = useQueryClient();
@@ -88,6 +103,10 @@ export function Dashboard() {
     () => new Set((contacts.data?.friends ?? []).map((friend) => friend.id)),
     [contacts.data?.friends]
   );
+  const blockedIds = useMemo(
+    () => new Set((contacts.data?.blocked ?? []).map((blocked) => blocked.id)),
+    [contacts.data?.blocked]
+  );
   const directPeer = conversationDetails.data?.kind === "direct"
     ? conversationDetails.data.directPeer
     : null;
@@ -102,8 +121,17 @@ export function Dashboard() {
   const createRoom = useMutation({
     mutationFn: api.createRoom,
     onSuccess: (conversation) => {
+      const summary = toConversationSummary(conversation);
+
       roomModals.closeCreateRoom();
+      roomModals.closeRoomDirectory();
+      queryClient.setQueryData(dashboardQueryKeys.conversation(conversation.id), conversation);
+      queryClient.setQueryData(dashboardQueryKeys.conversations(), (current: ConversationSummary[] | undefined) => [
+        summary,
+        ...(current ?? []).filter((item) => item.id !== summary.id)
+      ]);
       setSelectedConversationId(conversation.id);
+      setMobileView("chat");
       setStatus("Room created.");
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.publicRoomsRoot() });
@@ -144,7 +172,17 @@ export function Dashboard() {
   const joinRoom = useMutation({
     mutationFn: api.joinRoom,
     onSuccess: (conversation) => {
+      const summary = toConversationSummary(conversation);
+
+      roomModals.closeRoomDirectory();
+      queryClient.setQueryData(dashboardQueryKeys.conversation(conversation.id), conversation);
+      queryClient.setQueryData(dashboardQueryKeys.conversations(), (current: ConversationSummary[] | undefined) => [
+        summary,
+        ...(current ?? []).filter((item) => item.id !== summary.id)
+      ]);
       setSelectedConversationId(conversation.id);
+      setMobileView("chat");
+      setStatus(`Joined #${conversation.name}.`);
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.conversations() });
       void queryClient.invalidateQueries({ queryKey: dashboardQueryKeys.publicRoomsRoot() });
     },
@@ -222,6 +260,11 @@ export function Dashboard() {
 
   const openDirectFromMember = async (userId: string, username: string) => {
     if (userId === me.data?.user.id) {
+      return false;
+    }
+
+    if (blockedIds.has(userId)) {
+      setStatus(`${username} is blocked. Unblock in Friends to chat again.`);
       return false;
     }
 
@@ -393,7 +436,15 @@ export function Dashboard() {
       <div className="oldschool-window oldschool-bevel live-chat-window">
         <DashboardToolbar
           onOpenJabber={() => setUtilityPanel("jabber")}
-          onOpenCreateRoom={roomModals.openCreateRoom}
+          onOpenRooms={() => {
+            setUtilityPanel(null);
+            roomModals.openRoomDirectory();
+            void publicRooms.refetch();
+          }}
+          onOpenCreateRoom={() => {
+            roomModals.closeRoomDirectory();
+            roomModals.openCreateRoom();
+          }}
           onOpenSettings={() => setUtilityPanel("settings")}
           onOpenSocial={() => setUtilityPanel("social")}
           onSignOut={() => logout.mutate()}
@@ -404,18 +455,13 @@ export function Dashboard() {
         <div className={`workspace oldschool-workspace live-chat-workspace ${mobileView === "chat" ? "show-chat" : "show-sidebar"}`}>
           <ConversationSidebar
             conversations={conversations.data}
-            onJoinRoom={(roomId) => joinRoom.mutate(roomId)}
-            onOpenCreateRoom={roomModals.openCreateRoom}
             onOpenSocial={() => setUtilityPanel("social")}
             onSelectConversation={(conversationId) => {
               setSelectedConversationId(conversationId);
               setMobileView("chat");
             }}
-            publicRooms={publicRooms.data}
-            publicSearch={publicSearch}
             requestCount={contacts.data?.requests.length ?? 0}
             selectedConversationId={selectedConversationId}
-            setPublicSearch={setPublicSearch}
           />
 
           <ChatPanel
@@ -527,20 +573,11 @@ export function Dashboard() {
                       className="oldschool-member-identity"
                       onClick={(event) => openUserMenuAt(member, event.currentTarget)}
                       title="Open member actions"
-                    >
+                  >
                       <div className="oldschool-member-copy">
                         <strong>{member.username}</strong>
                         <span>{member.presence}</span>
                       </div>
-                    </button>
-                  )}
-                  {member.userId !== me.data?.user.id && !friendIds.has(member.userId) && (
-                    <button
-                      type="button"
-                      className="oldschool-member-action"
-                      onClick={() => void sendFriendRequestFromRoom(member.username)}
-                    >
-                      Add
                     </button>
                   )}
                 </div>
@@ -579,6 +616,7 @@ export function Dashboard() {
 
       {utilityPanel && (
         <InfoSidebar
+          blocked={contacts.data?.blocked}
           conversationTitle={selectedConversationTitle}
           friends={contacts.data?.friends}
           meUserId={me.data?.user.id}
@@ -652,9 +690,38 @@ export function Dashboard() {
               onError(error);
             });
           }}
+          onUnblockUser={(userId) => {
+            void api.unblockUser(userId).then(async () => {
+              setStatus("User unblocked.");
+              await refreshContactsAndConversations();
+            }).catch((error: Error) => setStatus(error.message));
+          }}
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
           xmppStatus={xmppStatus.data}
+        />
+      )}
+
+      {roomModals.roomDirectoryOpen && (
+        <RoomDirectoryModal
+          onClose={roomModals.closeRoomDirectory}
+          onJoinRoom={(roomId) => joinRoom.mutate(roomId)}
+          onOpenCreateRoom={() => {
+            roomModals.closeRoomDirectory();
+            roomModals.openCreateRoom();
+          }}
+          onOpenRoom={(roomId) => {
+            roomModals.closeRoomDirectory();
+            setSelectedConversationId(roomId);
+            setMobileView("chat");
+          }}
+          onRefreshRooms={() => {
+            void publicRooms.refetch();
+          }}
+          publicRooms={publicRooms.data}
+          publicSearch={publicSearch}
+          selectedConversationId={selectedConversationId}
+          setPublicSearch={setPublicSearch}
         />
       )}
 

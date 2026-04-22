@@ -7,7 +7,8 @@ import {
   blockUser,
   listContacts,
   removeFriend,
-  sendFriendRequest
+  sendFriendRequest,
+  unblockUser
 } from "./service.js";
 
 export const contactRoutes: FastifyPluginAsync = async (app) => {
@@ -60,6 +61,21 @@ export const contactRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const targetUserId = String((request.params as { userId: string }).userId);
       await blockUser(auth, targetUserId);
+      await Promise.all([
+        app.realtime.syncUserConversationMembership(auth.user.id),
+        app.realtime.syncUserConversationMembership(targetUserId)
+      ]);
+      return listContacts(auth);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.delete("/api/contacts/:userId/block", async (request, reply) => {
+    try {
+      const auth = requireAuth(request);
+      const targetUserId = String((request.params as { userId: string }).userId);
+      await unblockUser(auth, targetUserId);
       await Promise.all([
         app.realtime.syncUserConversationMembership(auth.user.id),
         app.realtime.syncUserConversationMembership(targetUserId)
