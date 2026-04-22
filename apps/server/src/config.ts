@@ -44,6 +44,8 @@ const smtpUser = optionalValue("SMTP_USER");
 const smtpPass = optionalValue("SMTP_PASS");
 const xmppApiUser = optionalValue("XMPP_API_USER");
 const xmppApiPass = optionalValue("XMPP_API_PASS");
+const assistantApiKey = optionalValue("ASSISTANT_API_KEY");
+const assistantEnabled = parseBoolean("ASSISTANT_ENABLED", Boolean(assistantApiKey));
 
 if ((smtpUser && !smtpPass) || (!smtpUser && smtpPass)) {
   throw new Error("SMTP_USER and SMTP_PASS must either both be set or both be empty");
@@ -51,6 +53,10 @@ if ((smtpUser && !smtpPass) || (!smtpUser && smtpPass)) {
 
 if ((xmppApiUser && !xmppApiPass) || (!xmppApiUser && xmppApiPass)) {
   throw new Error("XMPP_API_USER and XMPP_API_PASS must either both be set or both be empty");
+}
+
+if (assistantEnabled && !assistantApiKey) {
+  throw new Error("ASSISTANT_API_KEY is required when ASSISTANT_ENABLED=true");
 }
 
 export const config = {
@@ -68,6 +74,12 @@ export const config = {
   uploadDir: requireValue("UPLOAD_DIR", "uploads"),
   maxFileBytes: Number(requireValue("MAX_FILE_BYTES", String(20 * 1024 * 1024))),
   maxImageBytes: Number(requireValue("MAX_IMAGE_BYTES", String(3 * 1024 * 1024))),
+  assistantEnabled,
+  assistantUsername: requireValue("ASSISTANT_USERNAME", "assistant"),
+  assistantEmail: requireValue("ASSISTANT_EMAIL", "assistant@classic-chat.local"),
+  assistantApiKey,
+  assistantApiBaseUrl: requireValue("ASSISTANT_API_BASE_URL", "https://api.x.ai/v1"),
+  assistantModel: requireValue("ASSISTANT_MODEL", "grok-3"),
   xmppEnabled: parseBoolean("XMPP_ENABLED", false),
   xmppDomain: optionalValue("XMPP_DOMAIN"),
   xmppHost: optionalValue("XMPP_HOST") ?? optionalValue("XMPP_DOMAIN"),

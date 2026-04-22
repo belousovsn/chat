@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { createRoomInputSchema, inviteUserInputSchema, updateRoomInputSchema } from "@chat/shared";
 import { requireAuth } from "../../lib/auth.js";
 import { sendError } from "../../lib/http.js";
+import { addAssistantToRoom } from "../assistant/service.js";
 import {
   acceptInvite,
   banMember,
@@ -124,6 +125,21 @@ export const conversationRoutes: FastifyPluginAsync = async (app) => {
       const id = String((request.params as { id: string }).id);
       await inviteToPrivateRoom(auth, id, input.username);
       return { ok: true };
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/api/rooms/:id/assistant", async (request, reply) => {
+    try {
+      const auth = requireAuth(request);
+      const id = String((request.params as { id: string }).id);
+      const result = await addAssistantToRoom(auth, id);
+      await app.realtime.emitConversationUpdate(id, "conversation.updated", result.room);
+      return {
+        assistantUsername: result.assistantUser.username,
+        room: result.room
+      };
     } catch (error) {
       return sendError(reply, error);
     }

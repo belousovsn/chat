@@ -3,6 +3,8 @@ node_modules
 dist
 coverage
 .env
+.env.production
+.env.production.bak-*
 .env.local
 /uploads
 /backups

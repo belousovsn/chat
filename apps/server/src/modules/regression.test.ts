@@ -33,6 +33,7 @@ type ServerDeps = {
   db: typeof import("../db/client.js").db;
   pool: typeof import("../db/client.js").pool;
   schema: typeof import("../db/schema.js");
+  assistantService: typeof import("./assistant/service.js");
   messagesService: typeof import("./messages/service.js");
   conversationsService: typeof import("./conversations/service.js");
   HttpError: typeof import("../lib/http.js").HttpError;
@@ -79,9 +80,10 @@ const ensureDatabaseAvailable = async (t: { skip: (message?: string) => void }) 
 
 const loadDeps = async (): Promise<ServerDeps> => {
   depsPromise ??= (async () => {
-    const [{ db, pool }, schema, messagesService, conversationsService, { HttpError }] = await Promise.all([
+    const [{ db, pool }, schema, assistantService, messagesService, conversationsService, { HttpError }] = await Promise.all([
       import("../db/client.js"),
       import("../db/schema.js"),
+      import("./assistant/service.js"),
       import("./messages/service.js"),
       import("./conversations/service.js"),
       import("../lib/http.js")
@@ -91,6 +93,7 @@ const loadDeps = async (): Promise<ServerDeps> => {
       db,
       pool,
       schema,
+      assistantService,
       messagesService,
       conversationsService,
       HttpError
@@ -434,6 +437,31 @@ test("realtime recipients drop blocked direct conversations even if membership r
 
     const afterBlock = await scenario.conversationsService.listRealtimeRecipientUserIds(directConversationId);
     assert.deepEqual(afterBlock, []);
+  } finally {
+    await scenario.cleanup();
+  }
+});
+
+test("addAssistantToRoom creates reusable assistant membership for managed rooms", async (t) => {
+  if (!(await ensureDatabaseAvailable(t))) {
+    return;
+  }
+  const scenario = await createScenario();
+
+  try {
+    const owner = await scenario.createUser("assistant_owner");
+    const room = await scenario.createRoom(owner.record);
+
+    const result = await scenario.assistantService.addAssistantToRoom(owner.auth, room.id);
+    assert.equal(result.assistantUser.username, process.env.ASSISTANT_USERNAME ?? "assistant");
+
+    const [membership] = await scenario.db.select().from(scenario.schema.conversationMembers).where(and(
+      eq(scenario.schema.conversationMembers.conversationId, room.id),
+      eq(scenario.schema.conversationMembers.userId, result.assistantUser.id)
+    ));
+
+    assert.equal(membership?.status, "active");
+    assert.equal(membership?.role, "member");
   } finally {
     await scenario.cleanup();
   }

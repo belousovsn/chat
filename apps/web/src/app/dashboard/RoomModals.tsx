@@ -157,6 +157,21 @@ export function ManageRoomModal(props: {
               >
                 Send invite
               </button>
+              <button
+                type="button"
+                className="oldschool-button"
+                onClick={async () => {
+                  try {
+                    const result = await api.addAssistantToRoom(props.roomId);
+                    setStatus(`AI bot ready. Mention @${result.assistantUsername}.`);
+                    await props.onRefresh();
+                  } catch (error) {
+                    setStatus((error as Error).message);
+                  }
+                }}
+              >
+                Add AI bot
+              </button>
             </div>
 
             <div className="oldschool-modal-columns">

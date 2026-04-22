@@ -220,6 +220,53 @@ export const createMessage = async (
   return getMessageById(message.id, auth.user.id);
 };
 
+export const createAutomatedMessage = async (
+  conversationId: string,
+  authorId: string,
+  viewerUserId: string,
+  input: { body: string; replyToMessageId?: string | null }
+) => {
+  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId));
+  if (!conversation) {
+    throw new HttpError(404, "Conversation not found");
+  }
+  if (conversation.isFrozen) {
+    throw new HttpError(403, "Conversation is frozen");
+  }
+
+  const body = input.body.trim();
+  if (!body) {
+    throw new HttpError(400, "Automated message needs body");
+  }
+
+  if (input.replyToMessageId) {
+    const [replyTarget] = await db.select({ id: messages.id }).from(messages).where(
+      and(
+        eq(messages.id, input.replyToMessageId),
+        eq(messages.conversationId, conversationId),
+        sql`${messages.deletedAt} is null`
+      )
+    );
+    if (!replyTarget) {
+      throw new HttpError(400, "Reply target not found in conversation");
+    }
+  }
+
+  const [message] = await db.insert(messages).values({
+    conversationId,
+    authorId,
+    body,
+    replyToMessageId: input.replyToMessageId ?? null
+  }).returning();
+
+  if (!message) {
+    throw new HttpError(500, "Failed to create message");
+  }
+
+  await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+  return getMessageById(message.id, viewerUserId);
+};
+
 export const editMessage = async (auth: AuthSession, messageId: string, body: string) => {
   const [message] = await db.select().from(messages).where(eq(messages.id, messageId));
   if (!message || message.authorId !== auth.user.id) {

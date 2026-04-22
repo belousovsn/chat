@@ -68,6 +68,7 @@ export const api = {
   leaveRoom: (id: string) => request<Array<RoomSummary>>(`/api/rooms/${id}/leave`, "POST"),
   deleteRoom: (id: string) => request<Array<RoomSummary>>(`/api/rooms/${id}`, "DELETE"),
   inviteToRoom: (id: string, username: string) => request<{ ok: boolean }>(`/api/rooms/${id}/invite`, "POST", { username }),
+  addAssistantToRoom: (id: string) => request<{ assistantUsername: string; room: RoomDetails }>(`/api/rooms/${id}/assistant`, "POST"),
   roomBans: (id: string) => request<RoomBan[]>(`/api/rooms/${id}/bans`),
   unbanUser: (roomId: string, userId: string) => request(`/api/rooms/${roomId}/bans/${userId}`, "DELETE"),
   makeAdmin: (roomId: string, userId: string) => request(`/api/rooms/${roomId}/admins/${userId}`, "POST"),

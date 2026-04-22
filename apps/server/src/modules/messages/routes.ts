@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { editMessageInputSchema, markReadInputSchema, sendMessageInputSchema } from "@chat/shared";
 import { requireAuth } from "../../lib/auth.js";
 import { sendError } from "../../lib/http.js";
+import { queueAssistantReply } from "../assistant/service.js";
 import { createMessage, deleteMessage, editMessage, listMessages, markConversationRead } from "./service.js";
 
 export const messageRoutes: FastifyPluginAsync = async (app) => {
@@ -27,6 +28,12 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
         attachmentIds: input.attachmentIds
       });
       await app.realtime.emitConversationUpdate(params.id, "message.created", message);
+      void queueAssistantReply({
+        logger: app.log,
+        message,
+        realtime: app.realtime,
+        sender: auth.user
+      });
       return message;
     } catch (error) {
       return sendError(reply, error);
