@@ -1,5 +1,4 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -16,13 +15,14 @@ import { messageRoutes } from "./modules/messages/routes.js";
 import { RealtimeService } from "./modules/presence/service.js";
 import { sessionRoutes } from "./modules/sessions/routes.js";
 import { uploadRoutes } from "./modules/uploads/routes.js";
+import { xmppRoutes } from "./modules/xmpp/routes.js";
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const webDist = path.resolve(currentDir, "../../../web/dist");
+const webDist = path.resolve(process.cwd(), "../web/dist");
 
 export const buildApp = async () => {
   const app = Fastify({
-    logger: true
+    logger: true,
+    trustProxy: true
   });
 
   await app.register(cookie, {
@@ -51,12 +51,13 @@ export const buildApp = async () => {
   await app.register(conversationRoutes);
   await app.register(messageRoutes);
   await app.register(uploadRoutes);
+  await app.register(xmppRoutes);
 
   const realtime = new RealtimeService(app.server, app);
   await realtime.install();
   app.decorate("realtime", realtime);
 
-  app.get("/*", async (request, reply) => {
+  app.setNotFoundHandler(async (request, reply) => {
     if (String(request.url).startsWith("/api/")) {
       return reply.status(404).send({ error: "Not found" });
     }

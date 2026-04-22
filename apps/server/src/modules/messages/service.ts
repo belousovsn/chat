@@ -2,12 +2,124 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import { attachments, conversations, messages, readCursors } from "../../db/schema.js";
 import type { AuthSession } from "../../lib/auth.js";
+import { deleteAttachmentsByMessageIds, deleteOrphanAttachments } from "../../lib/attachments.js";
 import { HttpError } from "../../lib/http.js";
 import { ensureConversationAccess } from "../conversations/service.js";
 
+const mentionPattern = /(^|[^A-Za-z0-9_.-])@([A-Za-z0-9_.-]{3,24})(?![A-Za-z0-9_.-])/g;
+
+type MentionableUser = {
+  userId: string;
+  username: string;
+};
+
+type HydratedMessageRow = {
+  id: string;
+  conversation_id: string;
+  author_id: string;
+  username: string;
+  presence: "online" | "afk" | "offline";
+  body: string | null;
+  is_edited: boolean;
+  created_at: string;
+  updated_at: string;
+  reply_to_message_id: string | null;
+  reply_body: string | null;
+  reply_author_username: string | null;
+};
+
+const listMentionableUsers = async (conversationId: string) => {
+  const rows = await db.execute(sql`
+    select
+      cm.user_id,
+      u.username
+    from conversation_members cm
+    join users u on u.id = cm.user_id
+    where cm.conversation_id = ${conversationId}
+  `);
+
+  return new Map<string, MentionableUser>(
+    (rows.rows as Array<{ user_id: string; username: string }>)
+      .map((row) => [row.username, { userId: row.user_id, username: row.username }])
+  );
+};
+
+const extractMentions = (body: string | null, mentionableUsers: Map<string, MentionableUser>) => {
+  if (!body) {
+    return [];
+  }
+
+  mentionPattern.lastIndex = 0;
+  const mentions: Array<{ userId: string; username: string; start: number; end: number }> = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = mentionPattern.exec(body)) !== null) {
+    const prefix = match[1] ?? "";
+    const rawUsername = match[2];
+    if (!rawUsername) {
+      continue;
+    }
+
+    const mentionTarget = mentionableUsers.get(rawUsername);
+    if (!mentionTarget) {
+      continue;
+    }
+
+    const start = match.index + prefix.length;
+    mentions.push({
+      userId: mentionTarget.userId,
+      username: mentionTarget.username,
+      start,
+      end: start + rawUsername.length + 1
+    });
+  }
+
+  return mentions;
+};
+
+const mapAttachment = (attachment: typeof attachments.$inferSelect) => ({
+  id: attachment.id,
+  kind: attachment.kind,
+  originalName: attachment.originalName,
+  storedName: attachment.storedName,
+  mimeType: attachment.mimeType,
+  byteSize: attachment.byteSize,
+  comment: attachment.comment,
+  downloadUrl: `/api/uploads/${attachment.id}/download`,
+  uploadedAt: attachment.createdAt.toISOString()
+});
+
+const mapMessageRow = (
+  row: HydratedMessageRow,
+  attachmentRows: Array<typeof attachments.$inferSelect>,
+  mentionableUsers: Map<string, MentionableUser>
+) => ({
+  id: row.id,
+  conversationId: row.conversation_id,
+  author: {
+    id: row.author_id,
+    username: row.username,
+    presence: row.presence
+  },
+  body: row.body,
+  isEdited: row.is_edited,
+  createdAt: new Date(row.created_at).toISOString(),
+  updatedAt: new Date(row.updated_at).toISOString(),
+  replyTo: row.reply_to_message_id ? {
+    id: row.reply_to_message_id,
+    authorUsername: row.reply_author_username ?? "unknown",
+    body: row.reply_body
+  } : null,
+  mentions: extractMentions(row.body, mentionableUsers),
+  attachments: attachmentRows
+    .filter((attachment) => attachment.messageId === row.id)
+    .map(mapAttachment)
+});
+
 const hydrateMessages = async (conversationId: string, limit: number, cursor?: string) => {
   const cursorFilter = cursor ? sql`and m.created_at < ${cursor}` : sql``;
-  const messageRows = await db.execute(sql`
+  const [messageRows, mentionableUsers] = await Promise.all([
+    db.execute(sql`
     select
       m.id,
       m.conversation_id,
@@ -30,22 +142,11 @@ const hydrateMessages = async (conversationId: string, limit: number, cursor?: s
       ${cursorFilter}
     order by m.created_at desc
     limit ${limit + 1}
-  `);
+  `),
+    listMentionableUsers(conversationId)
+  ]);
 
-  const rows = messageRows.rows as Array<{
-    id: string;
-    conversation_id: string;
-    author_id: string;
-    username: string;
-    presence: "online" | "afk" | "offline";
-    body: string | null;
-    is_edited: boolean;
-    created_at: string;
-    updated_at: string;
-    reply_to_message_id: string | null;
-    reply_body: string | null;
-    reply_author_username: string | null;
-  }>;
+  const rows = messageRows.rows as Array<HydratedMessageRow>;
 
   const page = rows.slice(0, limit);
   const messageIds = page.map((row) => row.id);
@@ -53,39 +154,13 @@ const hydrateMessages = async (conversationId: string, limit: number, cursor?: s
     ? []
     : await db.select().from(attachments).where(inArray(attachments.messageId, messageIds));
 
+  const nextCursorRow = rows.length > limit ? page[page.length - 1] : undefined;
+
   return {
-    items: page.reverse().map((row) => ({
-      id: row.id,
-      conversationId: row.conversation_id,
-      author: {
-        id: row.author_id,
-        username: row.username,
-        presence: row.presence
-      },
-      body: row.body,
-      isEdited: row.is_edited,
-      createdAt: new Date(row.created_at).toISOString(),
-      updatedAt: new Date(row.updated_at).toISOString(),
-      replyTo: row.reply_to_message_id ? {
-        id: row.reply_to_message_id,
-        authorUsername: row.reply_author_username ?? "unknown",
-        body: row.reply_body
-      } : null,
-      attachments: attachmentRows
-        .filter((attachment) => attachment.messageId === row.id)
-        .map((attachment) => ({
-          id: attachment.id,
-          kind: attachment.kind,
-          originalName: attachment.originalName,
-          storedName: attachment.storedName,
-          mimeType: attachment.mimeType,
-          byteSize: attachment.byteSize,
-          comment: attachment.comment,
-          downloadUrl: `/api/uploads/${attachment.id}/download`,
-          uploadedAt: attachment.createdAt.toISOString()
-        }))
-    })),
-    nextCursor: rows.length > limit && rows[limit] ? new Date(rows[limit].created_at).toISOString() : null
+    items: page.reverse().map((row) => mapMessageRow(row, attachmentRows, mentionableUsers)),
+    nextCursor: nextCursorRow
+      ? new Date(nextCursorRow.created_at).toISOString()
+      : null
   };
 };
 
@@ -108,10 +183,25 @@ export const createMessage = async (
     throw new HttpError(403, "Conversation is frozen");
   }
 
+  const body = input.body?.trim() ? input.body.trim() : null;
+
+  if (input.replyToMessageId) {
+    const [replyTarget] = await db.select({ id: messages.id }).from(messages).where(
+      and(
+        eq(messages.id, input.replyToMessageId),
+        eq(messages.conversationId, conversationId),
+        sql`${messages.deletedAt} is null`
+      )
+    );
+    if (!replyTarget) {
+      throw new HttpError(400, "Reply target not found in conversation");
+    }
+  }
+
   const [message] = await db.insert(messages).values({
     conversationId,
     authorId: auth.user.id,
-    body: input.body?.trim() ? input.body : null,
+    body,
     replyToMessageId: input.replyToMessageId ?? null
   }).returning();
 
@@ -124,9 +214,57 @@ export const createMessage = async (
       .set({ messageId: message.id })
       .where(and(inArray(attachments.id, input.attachmentIds), eq(attachments.conversationId, conversationId), eq(attachments.uploaderId, auth.user.id)));
   }
+  await deleteOrphanAttachments(conversationId, auth.user.id);
 
   await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   return getMessageById(message.id, auth.user.id);
+};
+
+export const createAutomatedMessage = async (
+  conversationId: string,
+  authorId: string,
+  viewerUserId: string,
+  input: { body: string; replyToMessageId?: string | null }
+) => {
+  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId));
+  if (!conversation) {
+    throw new HttpError(404, "Conversation not found");
+  }
+  if (conversation.isFrozen) {
+    throw new HttpError(403, "Conversation is frozen");
+  }
+
+  const body = input.body.trim();
+  if (!body) {
+    throw new HttpError(400, "Automated message needs body");
+  }
+
+  if (input.replyToMessageId) {
+    const [replyTarget] = await db.select({ id: messages.id }).from(messages).where(
+      and(
+        eq(messages.id, input.replyToMessageId),
+        eq(messages.conversationId, conversationId),
+        sql`${messages.deletedAt} is null`
+      )
+    );
+    if (!replyTarget) {
+      throw new HttpError(400, "Reply target not found in conversation");
+    }
+  }
+
+  const [message] = await db.insert(messages).values({
+    conversationId,
+    authorId,
+    body,
+    replyToMessageId: input.replyToMessageId ?? null
+  }).returning();
+
+  if (!message) {
+    throw new HttpError(500, "Failed to create message");
+  }
+
+  await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+  return getMessageById(message.id, viewerUserId);
 };
 
 export const editMessage = async (auth: AuthSession, messageId: string, body: string) => {
@@ -148,12 +286,23 @@ export const deleteMessage = async (auth: AuthSession, messageId: string) => {
   if (message.authorId !== auth.user.id && membership.role === "member") {
     throw new HttpError(403, "Not allowed to delete this message");
   }
+  await deleteAttachmentsByMessageIds([message.id]);
   await db.update(messages).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(messages.id, messageId));
   return { ok: true, conversationId: message.conversationId };
 };
 
 export const markConversationRead = async (auth: AuthSession, conversationId: string, messageId: string) => {
   await ensureConversationAccess(conversationId, auth.user.id);
+  const [message] = await db.select({ id: messages.id }).from(messages).where(
+    and(
+      eq(messages.id, messageId),
+      eq(messages.conversationId, conversationId),
+      sql`${messages.deletedAt} is null`
+    )
+  );
+  if (!message) {
+    throw new HttpError(400, "Read cursor target not found in conversation");
+  }
   await db.insert(readCursors).values({
     conversationId,
     userId: auth.user.id,
@@ -167,19 +316,42 @@ export const markConversationRead = async (auth: AuthSession, conversationId: st
 
 export const getMessageById = async (messageId: string, userId: string) => {
   const rows = await db.execute(sql`
-    select m.conversation_id
+    select
+      m.id,
+      m.conversation_id,
+      m.author_id,
+      u.username,
+      u.presence,
+      m.body,
+      m.is_edited,
+      m.created_at,
+      m.updated_at,
+      m.reply_to_message_id,
+      reply.body as reply_body,
+      reply_author.username as reply_author_username
     from messages m
-    join conversation_members cm on cm.conversation_id = m.conversation_id and cm.user_id = ${userId}
+    join conversation_members cm
+      on cm.conversation_id = m.conversation_id
+     and cm.user_id = ${userId}
+     and cm.status = 'active'
+    join users u on u.id = m.author_id
+    left join messages reply on reply.id = m.reply_to_message_id
+    left join users reply_author on reply_author.id = reply.author_id
     where m.id = ${messageId}
+      and m.deleted_at is null
   `);
-  const conversationId = rows.rows[0]?.conversation_id as string | undefined;
-  if (!conversationId) {
+  const row = rows.rows[0] as HydratedMessageRow | undefined;
+
+  if (!row) {
     throw new HttpError(404, "Message not visible");
   }
-  const page = await hydrateMessages(conversationId, 1);
-  const found = page.items.find((item) => item.id === messageId);
-  if (!found) {
-    throw new HttpError(404, "Message not visible");
-  }
-  return found;
+
+  await ensureConversationAccess(row.conversation_id, userId);
+
+  const [attachmentRows, mentionableUsers] = await Promise.all([
+    db.select().from(attachments).where(eq(attachments.messageId, messageId)),
+    listMentionableUsers(row.conversation_id)
+  ]);
+
+  return mapMessageRow(row, attachmentRows, mentionableUsers);
 };

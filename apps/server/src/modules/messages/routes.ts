@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { editMessageInputSchema, markReadInputSchema, sendMessageInputSchema } from "@chat/shared";
 import { requireAuth } from "../../lib/auth.js";
 import { sendError } from "../../lib/http.js";
+import { queueAssistantReply } from "../assistant/service.js";
 import { createMessage, deleteMessage, editMessage, listMessages, markConversationRead } from "./service.js";
 
 export const messageRoutes: FastifyPluginAsync = async (app) => {
@@ -26,7 +27,13 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
         replyToMessageId: input.replyToMessageId ?? null,
         attachmentIds: input.attachmentIds
       });
-      app.realtime.emitConversationUpdate(params.id, "message.created", message);
+      await app.realtime.emitConversationUpdate(params.id, "message.created", message);
+      void queueAssistantReply({
+        logger: app.log,
+        message,
+        realtime: app.realtime,
+        sender: auth.user
+      });
       return message;
     } catch (error) {
       return sendError(reply, error);
@@ -39,7 +46,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const params = request.params as { id: string };
       const input = editMessageInputSchema.parse(request.body);
       const message = await editMessage(auth, params.id, input.body);
-      app.realtime.emitConversationUpdate(message.conversationId, "message.updated", message);
+      await app.realtime.emitConversationUpdate(message.conversationId, "message.updated", message);
       return message;
     } catch (error) {
       return sendError(reply, error);
@@ -51,7 +58,7 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const auth = requireAuth(request);
       const params = request.params as { id: string };
       const result = await deleteMessage(auth, params.id);
-      app.realtime.emitConversationUpdate(result.conversationId, "message.deleted", { messageId: params.id });
+      await app.realtime.emitConversationUpdate(result.conversationId, "message.deleted", { messageId: params.id });
       return { ok: true };
     } catch (error) {
       return sendError(reply, error);
@@ -64,7 +71,11 @@ export const messageRoutes: FastifyPluginAsync = async (app) => {
       const params = request.params as { id: string };
       const input = markReadInputSchema.parse(request.body);
       await markConversationRead(auth, params.id, input.messageId);
-      app.realtime.emitUserUpdate(auth.user.id, "unread.updated", { conversationId: params.id, unreadCount: 0 });
+      app.realtime.emitUserUpdate(auth.user.id, "unread.updated", {
+        conversationId: params.id,
+        unreadCount: 0,
+        unreadMentionCount: 0
+      });
       return { ok: true };
     } catch (error) {
       return sendError(reply, error);

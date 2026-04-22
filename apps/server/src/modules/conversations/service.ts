@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, ne, or, sql } from "drizzle-orm";
 import { db } from "../../db/client.js";
 import {
   conversationBans,
@@ -12,9 +12,102 @@ import {
   users
 } from "../../db/schema.js";
 import type { AuthSession } from "../../lib/auth.js";
+import { deleteAttachmentsByConversationId } from "../../lib/attachments.js";
 import { HttpError } from "../../lib/http.js";
 
 const normalizePair = (left: string, right: string): [string, string] => left < right ? [left, right] : [right, left];
+const mentionBoundaryPattern = "A-Za-z0-9_.-";
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const buildSelfMentionPattern = (username: string) => `(^|[^${mentionBoundaryPattern}])@${escapeRegex(username)}(?![${mentionBoundaryPattern}])`;
+
+const canUsersAccessDirectConversation = async (leftUserId: string, rightUserId: string) => {
+  const [userAId, userBId] = normalizePair(leftUserId, rightUserId);
+  const [friendship, block] = await Promise.all([
+    db.select().from(friendships).where(and(eq(friendships.userAId, userAId), eq(friendships.userBId, userBId))),
+    db.select().from(userBlocks).where(
+      or(
+        and(eq(userBlocks.blockerId, leftUserId), eq(userBlocks.blockedId, rightUserId)),
+        and(eq(userBlocks.blockerId, rightUserId), eq(userBlocks.blockedId, leftUserId))
+      )
+    )
+  ]);
+
+  return friendship.length > 0 && block.length === 0;
+};
+
+const getDirectConversationPeerId = async (conversationId: string, userId: string) => {
+  const [peer] = await db
+    .select({ userId: conversationMembers.userId })
+    .from(conversationMembers)
+    .where(
+      and(
+        eq(conversationMembers.conversationId, conversationId),
+        eq(conversationMembers.status, "active"),
+        ne(conversationMembers.userId, userId)
+      )
+    );
+
+  return peer?.userId ?? null;
+};
+
+export const listAccessibleConversationIds = async (userId: string) => {
+  const memberships = await db
+    .select({
+      conversationId: conversationMembers.conversationId,
+      kind: conversations.kind
+    })
+    .from(conversationMembers)
+    .innerJoin(conversations, eq(conversations.id, conversationMembers.conversationId))
+    .where(and(eq(conversationMembers.userId, userId), eq(conversationMembers.status, "active")));
+
+  const accessibleIds = await Promise.all(memberships.map(async (membership) => {
+    if (membership.kind === "room") {
+      return membership.conversationId;
+    }
+
+    const peerUserId = await getDirectConversationPeerId(membership.conversationId, userId);
+    if (!peerUserId) {
+      return null;
+    }
+
+    return await canUsersAccessDirectConversation(userId, peerUserId) ? membership.conversationId : null;
+  }));
+
+  return accessibleIds.filter((conversationId): conversationId is string => Boolean(conversationId));
+};
+
+export const listRealtimeRecipientUserIds = async (conversationId: string) => {
+  const [conversation] = await db
+    .select({ kind: conversations.kind })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
+
+  if (!conversation) {
+    return [];
+  }
+
+  const members = await db
+    .select({ userId: conversationMembers.userId })
+    .from(conversationMembers)
+    .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.status, "active")));
+
+  if (conversation.kind === "room") {
+    return members.map((member) => member.userId);
+  }
+
+  if (members.length !== 2) {
+    return [];
+  }
+
+  const [left, right] = members;
+  if (!left || !right) {
+    return [];
+  }
+
+  return await canUsersAccessDirectConversation(left.userId, right.userId)
+    ? members.map((member) => member.userId)
+    : [];
+};
 
 export const ensureConversationAccess = async (conversationId: string, userId: string) => {
   const [membership] = await db
@@ -25,6 +118,23 @@ export const ensureConversationAccess = async (conversationId: string, userId: s
   if (!membership) {
     throw new HttpError(403, "Conversation access denied");
   }
+
+  const [conversation] = await db
+    .select({ kind: conversations.kind })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId));
+
+  if (!conversation) {
+    throw new HttpError(404, "Conversation not found");
+  }
+
+  if (conversation.kind === "direct") {
+    const peerUserId = await getDirectConversationPeerId(conversationId, userId);
+    if (!peerUserId || !(await canUsersAccessDirectConversation(userId, peerUserId))) {
+      throw new HttpError(403, "Conversation access denied");
+    }
+  }
+
   return membership;
 };
 
@@ -37,6 +147,7 @@ export const ensureRoomAdmin = async (conversationId: string, userId: string) =>
 };
 
 export const listConversations = async (auth: AuthSession) => {
+  const unreadMentionPattern = buildSelfMentionPattern(auth.user.username);
   const result = await db.execute(sql`
     with latest_messages as (
       select conversation_id, max(created_at) as last_message_at
@@ -70,7 +181,20 @@ export const listConversations = async (auth: AuthSession) => {
           and m.deleted_at is null
           and m.author_id <> ${auth.user.id}
           and (rc.updated_at is null or m.created_at > rc.updated_at)
-      )::int as unread_count
+      )::int as unread_count,
+      (
+        select count(*)
+        from messages m
+        left join read_cursors rc
+          on rc.conversation_id = c.id
+         and rc.user_id = ${auth.user.id}
+        where m.conversation_id = c.id
+          and m.deleted_at is null
+          and m.author_id <> ${auth.user.id}
+          and m.body is not null
+          and (rc.updated_at is null or m.created_at > rc.updated_at)
+          and m.body ~ ${unreadMentionPattern}
+      )::int as unread_mention_count
     from conversations c
     join conversation_members cm
       on cm.conversation_id = c.id
@@ -80,7 +204,10 @@ export const listConversations = async (auth: AuthSession) => {
     order by coalesce(latest.last_message_at, c.updated_at) desc, c.name asc
   `);
 
-  const directIds = result.rows
+  const accessibleIds = new Set(await listAccessibleConversationIds(auth.user.id));
+  const visibleRows = result.rows.filter((row: Record<string, unknown>) => accessibleIds.has(String(row.id)));
+
+  const directIds = visibleRows
     .filter((row: Record<string, unknown>) => row.kind === "direct")
     .map((row: Record<string, unknown>) => String(row.id));
 
@@ -102,7 +229,7 @@ export const listConversations = async (auth: AuthSession) => {
     }
   }
 
-  return result.rows.map((row: Record<string, unknown>) => ({
+  return visibleRows.map((row: Record<string, unknown>) => ({
     id: String(row.id),
     kind: row.kind,
     name: String(row.name),
@@ -110,6 +237,7 @@ export const listConversations = async (auth: AuthSession) => {
     visibility: row.visibility ? row.visibility : null,
     ownerId: row.owner_id ? String(row.owner_id) : null,
     unreadCount: Number(row.unread_count ?? 0),
+    unreadMentionCount: Number(row.unread_mention_count ?? 0),
     memberCount: Number(row.member_count ?? 0),
     lastMessageAt: row.last_message_at ? new Date(String(row.last_message_at)).toISOString() : null,
     directPeer: directPeerMap.get(String(row.id)) ?? null,
@@ -263,6 +391,7 @@ export const deleteRoom = async (auth: AuthSession, conversationId: string) => {
   if (membership.role !== "owner") {
     throw new HttpError(403, "Only owner can delete room");
   }
+  await deleteAttachmentsByConversationId(conversationId);
   await db.delete(conversations).where(eq(conversations.id, conversationId));
 };
 
@@ -304,28 +433,57 @@ export const acceptInvite = async (auth: AuthSession, inviteId: string) => {
 };
 
 export const setAdminRole = async (auth: AuthSession, conversationId: string, targetUserId: string, makeAdmin: boolean) => {
-  const membership = await ensureConversationAccess(conversationId, auth.user.id);
-  const [target] = await db.select().from(conversationMembers).where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, targetUserId)));
+  const membership = await ensureRoomAdmin(conversationId, auth.user.id);
+  const [target] = await db.select().from(conversationMembers).where(
+    and(
+      eq(conversationMembers.conversationId, conversationId),
+      eq(conversationMembers.userId, targetUserId),
+      eq(conversationMembers.status, "active")
+    )
+  );
   if (!target) {
     throw new HttpError(404, "Member not found");
   }
   if (target.role === "owner") {
     throw new HttpError(400, "Owner role cannot change");
   }
-  if (membership.role !== "owner" && !(membership.role === "admin" && makeAdmin)) {
-    throw new HttpError(403, "Insufficient privileges");
+  if (makeAdmin) {
+    if (membership.role !== "owner") {
+      throw new HttpError(403, "Only owner can grant admin");
+    }
+  } else {
+    if (target.role !== "admin") {
+      throw new HttpError(400, "Target user is not an admin");
+    }
+    if (membership.role === "admin" && targetUserId === auth.user.id) {
+      throw new HttpError(403, "Admin cannot remove own admin role");
+    }
   }
   await db.update(conversationMembers).set({ role: makeAdmin ? "admin" : "member" }).where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, targetUserId)));
 };
 
 export const banMember = async (auth: AuthSession, conversationId: string, targetUserId: string) => {
-  await ensureRoomAdmin(conversationId, auth.user.id);
-  const [targetMembership] = await db.select().from(conversationMembers).where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, targetUserId)));
+  const membership = await ensureRoomAdmin(conversationId, auth.user.id);
+  if (targetUserId === auth.user.id) {
+    throw new HttpError(400, "Cannot ban yourself");
+  }
+  const [targetMembership] = await db.select().from(conversationMembers).where(
+    and(
+      eq(conversationMembers.conversationId, conversationId),
+      eq(conversationMembers.userId, targetUserId),
+      eq(conversationMembers.status, "active")
+    )
+  );
   if (!targetMembership || targetMembership.role === "owner") {
     throw new HttpError(400, "Cannot ban target member");
   }
+  if (membership.role === "admin" && targetMembership.role !== "member") {
+    throw new HttpError(403, "Admins can only ban regular members");
+  }
 
-  await db.update(conversationMembers).set({ status: "banned" }).where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, targetUserId)));
+  await db.update(conversationMembers)
+    .set({ status: "banned", role: "member" })
+    .where(and(eq(conversationMembers.conversationId, conversationId), eq(conversationMembers.userId, targetUserId)));
   await db.insert(conversationBans).values({
     conversationId,
     userId: targetUserId,

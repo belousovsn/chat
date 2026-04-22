@@ -1,0 +1,198 @@
+# Production Deploy
+
+This document captures the currently working production shape for the classic chat app.
+
+Current live target:
+
+- domain: `chat.memdecks.com`
+- app host path: `/srv/chat`
+- reverse proxy: `nginx`
+- TLS: `certbot --nginx`
+- runtime: `docker compose -f docker-compose.prod.yml`
+
+## What Landed
+
+Production-specific behavior now includes:
+
+- Fastify trusts proxy headers so `nginx` forwarding behaves correctly.
+- Session cookies become `Secure` automatically when `APP_URL` uses `https://`.
+- Container startup can skip demo seed data with `RUN_SEED=false`.
+
+Relevant files:
+
+- [docker-compose.prod.yml](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docker-compose.prod.yml)
+- [.env.production.example](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/.env.production.example)
+- [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf)
+- [ops/nginx/xmpp.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/xmpp.memdecks.com.conf)
+- [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md)
+- [docs/xmpp-thin-slice.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-thin-slice.md)
+- [ops/scripts/refresh-xmpp-certs.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/refresh-xmpp-certs.sh)
+
+## One-Time Server Prep
+
+On a fresh Ubuntu host:
+
+1. Install Docker Engine and Compose v2.
+2. Install `nginx`.
+3. Point DNS for the chat hostname to the droplet.
+4. Open inbound `80` and `443`.
+5. Add swap if the box is memory-constrained.
+
+The current droplet was also cleaned up from older containers and given a persistent `2G` swapfile.
+
+## App Setup
+
+1. Clone repo to `/srv/chat`.
+2. Copy `.env.production.example` to `.env.production`.
+3. Replace:
+   - `APP_URL`
+   - `SESSION_SECRET`
+   - `POSTGRES_PASSWORD`
+   - `DATABASE_URL`
+   - `MAIL_FROM`
+   - `SMTP_HOST`
+   - `SMTP_PORT`
+   - `SMTP_SECURE`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+   - `XMPP_USER_PROVISIONING_ENABLED` if you want app registrations and password changes to mirror into ejabberd
+   - `XMPP_USER_PROVISIONING_STRICT` if you want XMPP sync failures to fail the app request instead of degrading gracefully
+   - `BACKUP_DIR` if you want backups outside `/srv/chat/backups`
+   - `BACKUP_KEEP_DAYS` if you want automatic retention pruning
+4. Keep `RUN_SEED=false` for public deployment unless you explicitly want demo users.
+
+Important:
+
+- `DATABASE_URL` and `POSTGRES_PASSWORD` must match.
+- If you use a real SMTP provider, set both `SMTP_USER` and `SMTP_PASS` together.
+- If you leave `mailpit` in place, password reset mail is still internal only.
+- Existing app users created before XMPP provisioning is enabled cannot be auto-backfilled with the old password because the app stores password hashes only. They need a password change, reset, or the in-app XMPP repair flow.
+
+## Launch
+
+From `/srv/chat`:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.prod.yml ps
+```
+
+Expected runtime shape:
+
+- `db` internal only
+- `mailpit` internal only
+- `app` bound to `127.0.0.1:8080`
+- `nginx` publishes public `80/443`
+
+## Nginx And TLS
+
+1. Copy [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf) to `/etc/nginx/sites-available/chat.memdecks.com`.
+2. Symlink it into `/etc/nginx/sites-enabled/`.
+3. Validate and reload:
+
+```bash
+nginx -t
+systemctl reload nginx
+```
+
+4. Issue certificate:
+
+```bash
+apt-get update
+apt-get install -y certbot python3-certbot-nginx
+certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email --redirect -d chat.memdecks.com
+```
+
+`certbot` will rewrite the site config to add TLS and HTTP-to-HTTPS redirect.
+
+## XMPP Host Discovery
+
+Some Windows XMPP clients probe `https://xmpp.<your-domain>/.well-known/host-meta` during setup. If that hostname serves the wrong certificate on `443`, clients can stay stuck on connecting even when `5222` and STARTTLS are healthy.
+
+For the XMPP hostname:
+
+1. Copy [ops/nginx/xmpp.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/xmpp.memdecks.com.conf) to `/etc/nginx/sites-available/xmpp.memdecks.com`.
+2. Symlink it into `/etc/nginx/sites-enabled/`.
+3. Ensure the TLS files for `xmpp.<your-domain>` exist in `/etc/letsencrypt/live/<xmpp-domain>/`.
+4. Validate and reload `nginx`.
+
+That site serves the correct certificate for the XMPP hostname and proxies:
+
+- `/.well-known/host-meta`
+- `/.well-known/host-meta.json`
+- `/bosh`
+- `/websocket`
+
+## App-Managed XMPP Users
+
+When you want the app to create and repair XMPP users automatically:
+
+1. Set `XMPP_USER_PROVISIONING_ENABLED=true` in `.env.production`.
+2. Optionally set `XMPP_USER_PROVISIONING_STRICT=true` if account sync failures should fail the app request instead of continuing.
+3. Restart the app container.
+
+Current behavior of that feature:
+
+- new app registrations create matching XMPP accounts
+- password changes and reset-password flow update the XMPP password
+- account deletion unregisters the XMPP account
+- accepted friendships can sync roster subscriptions for presence
+- existing pre-flag users still need one repair/provision action in the app because plaintext passwords are not stored
+
+## Smoke Checks
+
+Local checks on the server:
+
+```bash
+curl http://127.0.0.1:8080/api/health
+curl -H 'Host: chat.memdecks.com' http://127.0.0.1/api/health
+```
+
+Public checks:
+
+```bash
+curl https://chat.memdecks.com/api/health
+SMOKE_BASE_URL=https://chat.memdecks.com corepack pnpm smoke:prod
+```
+
+Good outcome:
+
+- `/api/health` returns `{"ok":true,...}`
+- app HTML loads from `/`
+- register flow succeeds over HTTPS
+
+Optional authenticated smoke:
+
+```bash
+SMOKE_BASE_URL=https://chat.memdecks.com \
+SMOKE_EMAIL=admin@example.com \
+SMOKE_PASSWORD=replace-me \
+corepack pnpm smoke:prod
+```
+
+## Backups
+
+Backup and restore guidance now lives in [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md).
+
+Server-side scripts:
+
+- [ops/scripts/backup-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/backup-prod.sh)
+- [ops/scripts/restore-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/restore-prod.sh)
+- [ops/scripts/install-prod-backup-timer.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/install-prod-backup-timer.sh)
+- [ops/systemd/chat-backup.service](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.service)
+- [ops/systemd/chat-backup.timer](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.timer)
+
+To enable daily automated backups on the server:
+
+```bash
+chmod +x ops/scripts/install-prod-backup-timer.sh
+sudo ./ops/scripts/install-prod-backup-timer.sh /srv/chat
+systemctl list-timers chat-backup.timer --no-pager
+```
+
+## Known Gaps
+
+- Real SMTP is not configured yet.
+- Backup automation assets are in repo but not yet enabled on the server.
+- Monitoring and log aggregation are still manual.
+- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222` with public STARTTLS and a valid Let's Encrypt cert; HTTPS discovery on the XMPP hostname must also serve the matching certificate for some desktop clients.

@@ -1,10 +1,11 @@
 import type { Server as HttpServer } from "node:http";
 import type { FastifyInstance } from "fastify";
-import { Server } from "socket.io";
+import { Server, type Socket } from "socket.io";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/client.js";
-import { conversationMembers, users } from "../../db/schema.js";
+import { users } from "../../db/schema.js";
 import { sessionCookieName } from "../../lib/auth.js";
+import { listAccessibleConversationIds, listRealtimeRecipientUserIds } from "../conversations/service.js";
 
 type PresenceValue = "online" | "afk" | "offline";
 type SocketState = {
@@ -13,6 +14,8 @@ type SocketState = {
   lastActiveAt: number;
   active: boolean;
 };
+
+const onlineThresholdMs = 60_000;
 
 const parseCookieValue = (cookieHeader: string | undefined, name: string) => {
   if (!cookieHeader) {
@@ -67,13 +70,8 @@ export class RealtimeService {
         return;
       }
       socket.join(`user:${auth.user.id}`);
-
-      const conversationsForUser = await db.select({ conversationId: conversationMembers.conversationId })
-        .from(conversationMembers)
-        .where(eq(conversationMembers.userId, auth.user.id));
-      for (const row of conversationsForUser) {
-        socket.join(`conversation:${row.conversationId}`);
-      }
+      const accessibleConversationIds = await listAccessibleConversationIds(auth.user.id);
+      this.syncSocketConversationRooms(socket, accessibleConversationIds);
 
       socket.on("presence.activity", async (payload: { tabId: string; active: boolean; timestamp: string }) => {
         await this.trackActivity(auth.user.id, socket.id, payload.tabId, payload.active, payload.timestamp);
@@ -93,7 +91,7 @@ export class RealtimeService {
       return "offline";
     }
     const now = Date.now();
-    const hasOnline = [...states.values()].some((entry) => entry.active && now - entry.lastActiveAt <= 60_000);
+    const hasOnline = [...states.values()].some((entry) => now - entry.lastActiveAt <= onlineThresholdMs);
     return hasOnline ? "online" : "afk";
   }
 
@@ -108,11 +106,18 @@ export class RealtimeService {
 
   public async trackActivity(userId: string, socketId: string, tabId: string, active: boolean, timestamp: string) {
     const existing = this.connections.get(userId) ?? new Map<string, SocketState>();
+    const previousEntry = existing.get(socketId);
     const previousPresence = this.computePresence(userId);
+    const parsedTimestamp = Date.parse(timestamp);
+    const normalizedTimestamp = Number.isNaN(parsedTimestamp)
+      ? Date.now()
+      : Math.min(parsedTimestamp, Date.now());
     existing.set(socketId, {
       socketId,
       tabId,
-      lastActiveAt: Number.isNaN(Date.parse(timestamp)) ? Date.now() : Date.parse(timestamp),
+      lastActiveAt: active
+        ? normalizedTimestamp
+        : previousEntry?.lastActiveAt ?? 0,
       active
     });
     this.connections.set(userId, existing);
@@ -138,8 +143,41 @@ export class RealtimeService {
     }
   }
 
-  public emitConversationUpdate(conversationId: string, type: string, payload: unknown) {
-    this.io.to(`conversation:${conversationId}`).emit("chat:event", { type, payload });
+  private syncSocketConversationRooms(socket: Socket, conversationIds: string[]) {
+    const targetRooms = new Set(conversationIds.map((conversationId) => `conversation:${conversationId}`));
+
+    for (const room of socket.rooms) {
+      if (room.startsWith("conversation:") && !targetRooms.has(room)) {
+        socket.leave(room);
+      }
+    }
+
+    for (const room of targetRooms) {
+      socket.join(room);
+    }
+  }
+
+  public async syncUserConversationMembership(userId: string) {
+    const sockets = this.connections.get(userId);
+    if (!sockets || sockets.size === 0) {
+      return;
+    }
+
+    const accessibleConversationIds = await listAccessibleConversationIds(userId);
+    for (const socketId of sockets.keys()) {
+      const socket = this.io.sockets.sockets.get(socketId);
+      if (!socket) {
+        continue;
+      }
+      this.syncSocketConversationRooms(socket, accessibleConversationIds);
+    }
+  }
+
+  public async emitConversationUpdate(conversationId: string, type: string, payload: unknown) {
+    const recipientUserIds = await listRealtimeRecipientUserIds(conversationId);
+    for (const userId of recipientUserIds) {
+      this.io.to(`user:${userId}`).emit("chat:event", { type, payload });
+    }
   }
 
   public emitUserUpdate(userId: string, type: string, payload: unknown) {

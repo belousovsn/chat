@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { sessions, users } from "../db/schema.js";
+import { config } from "../config.js";
 import { HttpError } from "./http.js";
 
 export const sessionCookieName = "chat_session";
@@ -11,6 +12,7 @@ export const sessionCookieName = "chat_session";
 export type AuthSession = {
   sessionId: string;
   user: {
+    canViewXmppAdmin: boolean;
     id: string;
     email: string;
     username: string;
@@ -29,6 +31,7 @@ export const setSessionCookie = async (reply: FastifyReply, sessionId: string) =
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    secure: config.appUrl.startsWith("https://"),
     signed: false,
     maxAge: 60 * 60 * 24 * 30
   });
@@ -37,6 +40,8 @@ export const setSessionCookie = async (reply: FastifyReply, sessionId: string) =
 export const clearSessionCookie = (reply: FastifyReply) => {
   reply.clearCookie(sessionCookieName, { path: "/" });
 };
+
+const canViewXmppAdmin = (username: string) => config.xmppAdminUsers.includes(username);
 
 export const parseSessionCookie = async (request: FastifyRequest) => {
   const raw = request.cookies[sessionCookieName];
@@ -79,6 +84,7 @@ export const loadAuth = async (request: FastifyRequest): Promise<AuthSession | n
   return {
     sessionId: row.sessionId,
     user: {
+      canViewXmppAdmin: canViewXmppAdmin(row.username),
       id: row.userId,
       email: row.email,
       username: row.username,
@@ -117,6 +123,7 @@ export const getAuthSessionById = async (sessionId: string): Promise<AuthSession
   return {
     sessionId: row.sessionId,
     user: {
+      canViewXmppAdmin: canViewXmppAdmin(row.username),
       id: row.userId,
       email: row.email,
       username: row.username,

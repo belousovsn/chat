@@ -43,7 +43,8 @@ export const authUserSchema = z.object({
   email: z.string().email(),
   username: z.string(),
   presence: z.enum(["online", "afk", "offline"]),
-  createdAt: z.string()
+  createdAt: z.string(),
+  canViewXmppAdmin: z.boolean()
 });
 
 export const authSessionSchema = z.object({

@@ -8,10 +8,12 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "migrate": "node ./dist/db/runMigrations.js",
+    "migrate": "node ./dist/apps/server/src/db/runMigrations.js",
     "seed": "tsx src/db/seed.ts",
-    "start": "node dist/index.js",
-    "test": "tsx --test src/**/*.test.ts"
+    "smoke": "tsx src/scripts/smoke.ts",
+    "smoke:prod": "tsx src/scripts/smoke-prod.ts",
+    "start": "node dist/apps/server/src/index.js",
+    "test": "tsx src/scripts/run-tests.ts"
   },
   "dependencies": {
     "@chat/shared": "workspace:*",

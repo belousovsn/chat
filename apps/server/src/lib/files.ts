@@ -14,3 +14,8 @@ export const deleteStoredFile = async (storedName: string | null) => {
   }
   await rm(resolveUploadPath(storedName), { force: true });
 };
+
+export const deleteStoredFiles = async (storedNames: Array<string | null | undefined>) => {
+  const uniqueNames = [...new Set(storedNames.filter((storedName): storedName is string => Boolean(storedName)))];
+  await Promise.all(uniqueNames.map((storedName) => deleteStoredFile(storedName)));
+};

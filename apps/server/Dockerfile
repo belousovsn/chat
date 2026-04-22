@@ -10,10 +10,11 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 
-RUN pnpm install --frozen-lockfile --reporter=append-only
+RUN pnpm fetch --frozen-lockfile
 
 COPY . .
 
+RUN pnpm install --frozen-lockfile --offline --reporter=append-only
 RUN pnpm build
 
 FROM node:22-alpine AS runtime
@@ -24,4 +25,4 @@ RUN corepack enable
 
 COPY --from=build /app /app
 
-CMD ["sh", "-c", "pnpm --filter @chat/server migrate && pnpm --filter @chat/server seed && pnpm --filter @chat/server start"]
+CMD ["sh", "-c", "pnpm --filter @chat/server migrate && if [ \"${RUN_SEED:-true}\" = \"true\" ]; then pnpm --filter @chat/server seed; fi && pnpm --filter @chat/server start"]

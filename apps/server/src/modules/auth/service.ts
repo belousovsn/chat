@@ -3,9 +3,7 @@ import { and, eq, isNull, ne, or } from "drizzle-orm";
 import type { FastifyRequest } from "fastify";
 import { db } from "../../db/client.js";
 import {
-  attachments,
   conversationMembers,
-  conversations,
   friendships,
   messages,
   passwordResetTokens,
@@ -14,7 +12,7 @@ import {
   userBlocks,
   users
 } from "../../db/schema.js";
-import { deleteStoredFile } from "../../lib/files.js";
+import { deleteAttachmentsByUploaderId } from "../../lib/attachments.js";
 import { HttpError } from "../../lib/http.js";
 import { createMailer } from "../../lib/mailer.js";
 import {
@@ -26,6 +24,9 @@ import {
   type AuthSession
 } from "../../lib/auth.js";
 import { config } from "../../config.js";
+import { removeXmppUser, upsertXmppUser } from "../xmpp/service.js";
+
+const xmppProvisioningHttpError = () => new HttpError(502, "XMPP account sync failed");
 
 export const buildSessionPayload = async (auth: AuthSession) => {
   const activeSessions = await db.select({
@@ -37,7 +38,9 @@ export const buildSessionPayload = async (auth: AuthSession) => {
   }).from(sessions).where(eq(sessions.userId, auth.user.id));
 
   return {
-    user: auth.user,
+    user: {
+      ...auth.user
+    },
     sessions: activeSessions.map((session) => ({
       id: session.id,
       userAgent: session.userAgent,
@@ -64,6 +67,15 @@ export const registerUser = async (input: { email: string; username: string; pas
 
   if (!user) {
     throw new HttpError(500, "Failed to create user");
+  }
+
+  try {
+    await upsertXmppUser(config, user.username, input.password);
+  } catch {
+    if (config.xmppUserProvisioningStrict) {
+      await db.delete(users).where(eq(users.id, user.id));
+      throw xmppProvisioningHttpError();
+    }
   }
 
   return createSession(user.id, request);
@@ -135,7 +147,27 @@ export const resetPassword = async (token: string, password: string) => {
     throw new HttpError(400, "Invalid or expired reset token");
   }
 
-  await db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, row.userId));
+  const [user] = await db.select({
+    id: users.id,
+    passwordHash: users.passwordHash,
+    username: users.username
+  }).from(users).where(eq(users.id, row.userId));
+  if (!user) {
+    throw new HttpError(404, "User not found");
+  }
+
+  const nextHash = await hashPassword(password);
+  await db.update(users).set({ passwordHash: nextHash }).where(eq(users.id, row.userId));
+
+  try {
+    await upsertXmppUser(config, user.username, password);
+  } catch {
+    if (config.xmppUserProvisioningStrict) {
+      await db.update(users).set({ passwordHash: user.passwordHash }).where(eq(users.id, row.userId));
+      throw xmppProvisioningHttpError();
+    }
+  }
+
   await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, row.id));
 };
 
@@ -148,19 +180,30 @@ export const changePassword = async (auth: AuthSession, currentPassword: string,
   if (!valid) {
     throw new HttpError(400, "Current password is incorrect");
   }
-  await db.update(users).set({ passwordHash: await hashPassword(newPassword) }).where(eq(users.id, auth.user.id));
+
+  const nextHash = await hashPassword(newPassword);
+  await db.update(users).set({ passwordHash: nextHash }).where(eq(users.id, auth.user.id));
+
+  try {
+    await upsertXmppUser(config, user.username, newPassword);
+  } catch {
+    if (config.xmppUserProvisioningStrict) {
+      await db.update(users).set({ passwordHash: user.passwordHash }).where(eq(users.id, auth.user.id));
+      throw xmppProvisioningHttpError();
+    }
+  }
 };
 
 export const deleteAccount = async (auth: AuthSession) => {
-  const ownedRooms = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.ownerId, auth.user.id), eq(conversations.kind, "room")));
-
-  for (const room of ownedRooms) {
-    const roomAttachments = await db.select({ storedName: attachments.storedName }).from(attachments).where(eq(attachments.conversationId, room.id));
-    for (const attachment of roomAttachments) {
-      await deleteStoredFile(attachment.storedName);
+  try {
+    await removeXmppUser(config, auth.user.username);
+  } catch {
+    if (config.xmppUserProvisioningStrict) {
+      throw xmppProvisioningHttpError();
     }
   }
 
+  await deleteAttachmentsByUploaderId(auth.user.id);
   await db.delete(friendships).where(or(eq(friendships.userAId, auth.user.id), eq(friendships.userBId, auth.user.id)));
   await db.delete(userBlocks).where(or(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, auth.user.id)));
   await db.delete(readCursors).where(eq(readCursors.userId, auth.user.id));

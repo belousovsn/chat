@@ -26,6 +26,30 @@ services:
       timeout: 5s
       retries: 10
 
+  xmpp:
+    profiles: ["xmpp"]
+    image: ghcr.io/processone/ejabberd
+    environment:
+      EJABBERD_MACRO_HOST: localhost
+      EJABBERD_MACRO_ADMIN: xmppadmin@localhost
+      EJABBERD_MACRO_APIJID: xmppapi@localhost
+      CTL_ON_CREATE: >-
+        ! register xmppadmin localhost xmpp-admin-pass ;
+        ! register xmppapi localhost xmpp-api-pass ;
+        status
+    ports:
+      - "5222:5222"
+      - "5269:5269"
+      - "5443:5443"
+    volumes:
+      - ./ops/xmpp/ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml
+      - xmpp-data:/opt/ejabberd/database
+    healthcheck:
+      test: ["CMD-SHELL", "ejabberdctl status >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   app:
     build:
       context: .
@@ -41,6 +65,19 @@ services:
       SMTP_PORT: 1025
       APP_URL: http://localhost:8080
       UPLOAD_DIR: /app/uploads
+      XMPP_ENABLED: true
+      XMPP_DOMAIN: localhost
+      XMPP_HOST: localhost
+      XMPP_CLIENT_PORT: 5222
+      XMPP_FEDERATION_ENABLED: false
+      XMPP_FEDERATION_PORT: 5269
+      XMPP_ADMIN_PORT: 5443
+      XMPP_COMPOSE_PROFILE: xmpp
+      XMPP_ADMIN_JID: xmppadmin@localhost
+      XMPP_API_BASE_URL: http://xmpp:5281/api
+      XMPP_API_USER: xmppapi@localhost
+      XMPP_API_PASS: xmpp-api-pass
+      XMPP_ADMIN_USERS: alice
     depends_on:
       db:
         condition: service_healthy
@@ -51,7 +88,7 @@ services:
     volumes:
       - uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "node", "apps/server/dist/healthcheck.js"]
+      test: ["CMD", "node", "apps/server/dist/apps/server/src/healthcheck.js"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -59,3 +96,4 @@ services:
 volumes:
   postgres-data:
   uploads:
+  xmpp-data:

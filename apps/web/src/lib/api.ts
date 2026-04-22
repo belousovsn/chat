@@ -1,15 +1,21 @@
 import type {
+  XmppAccount,
   AuthSession,
   ChatMessage,
+  ContactsResponse,
   CreateRoomInput,
   EditMessageInput,
   FriendRequestInput,
+  LoginInput,
   MarkReadInput,
   PaginatedMessages,
+  PublicRoom,
   RegisterInput,
+  RoomBan,
   RoomDetails,
   RoomSummary,
-  SendMessageInput
+  SendMessageInput,
+  XmppStatus
 } from "@chat/shared";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -20,7 +26,7 @@ async function request<T>(path: string, method: HttpMethod = "GET", body?: unkno
     credentials: "include"
   };
 
-  if (!isFormData) {
+  if (!isFormData && body !== undefined) {
     init.headers = { "Content-Type": "application/json" };
   }
   if (body) {
@@ -40,29 +46,34 @@ async function request<T>(path: string, method: HttpMethod = "GET", body?: unkno
 export const api = {
   me: () => request<AuthSession>("/api/me"),
   register: (input: RegisterInput) => request<AuthSession>("/api/auth/register", "POST", input),
-  login: (input: { email: string; password: string }) => request<AuthSession>("/api/auth/login", "POST", input),
+  login: (input: LoginInput) => request<AuthSession>("/api/auth/login", "POST", input),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", "POST"),
   forgotPassword: (email: string) => request<{ ok: boolean }>("/api/auth/forgot-password", "POST", { email }),
   resetPassword: (token: string, password: string) => request<{ ok: boolean }>("/api/auth/reset-password", "POST", { token, password }),
   changePassword: (currentPassword: string, newPassword: string) => request<{ ok: boolean }>("/api/auth/change-password", "POST", { currentPassword, newPassword }),
   deleteAccount: () => request<{ ok: boolean }>("/api/me", "DELETE"),
   sessions: () => request<AuthSession>("/api/sessions"),
+  xmppAccount: () => request<XmppAccount>("/api/xmpp/account"),
+  provisionXmppAccount: (currentPassword: string) => request<XmppAccount>("/api/xmpp/provision", "POST", { currentPassword }),
+  xmppStatus: () => request<XmppStatus>("/api/xmpp/status"),
   revokeSession: (sessionId: string) => request<AuthSession>("/api/sessions/revoke", "POST", { sessionId }),
-  contacts: () => request<{ friends: Array<{ id: string; username: string; presence: string; since: string }>; requests: Array<Record<string, unknown>> }>("/api/contacts"),
+  contacts: () => request<ContactsResponse>("/api/contacts"),
   sendFriendRequest: (input: FriendRequestInput) => request("/api/contacts/requests", "POST", input),
   acceptFriendRequest: (requestId: string) => request(`/api/contacts/requests/${requestId}/accept`, "POST"),
   removeFriend: (userId: string) => request(`/api/contacts/${userId}`, "DELETE"),
   blockUser: (userId: string) => request(`/api/contacts/${userId}/block`, "POST"),
-  conversations: () => request<Array<RoomSummary & { ownerId?: string | null; isFrozen?: boolean }>>("/api/conversations"),
-  conversation: (id: string) => request<RoomDetails & { isFrozen?: boolean; ownerId?: string | null }>(`/api/conversations/${id}`),
-  publicRooms: (search?: string) => request<Array<Record<string, unknown>>>(`/api/rooms/public${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  unblockUser: (userId: string) => request(`/api/contacts/${userId}/block`, "DELETE"),
+  conversations: () => request<RoomSummary[]>("/api/conversations"),
+  conversation: (id: string) => request<RoomDetails>(`/api/conversations/${id}`),
+  publicRooms: (search?: string) => request<PublicRoom[]>(`/api/rooms/public${search ? `?search=${encodeURIComponent(search)}` : ""}`),
   createRoom: (input: CreateRoomInput) => request<RoomDetails>("/api/rooms", "POST", input),
   updateRoom: (id: string, input: Partial<CreateRoomInput>) => request<RoomDetails>(`/api/rooms/${id}`, "PATCH", input),
   joinRoom: (id: string) => request<RoomDetails>(`/api/rooms/${id}/join`, "POST"),
   leaveRoom: (id: string) => request<Array<RoomSummary>>(`/api/rooms/${id}/leave`, "POST"),
   deleteRoom: (id: string) => request<Array<RoomSummary>>(`/api/rooms/${id}`, "DELETE"),
   inviteToRoom: (id: string, username: string) => request<{ ok: boolean }>(`/api/rooms/${id}/invite`, "POST", { username }),
-  roomBans: (id: string) => request<Array<Record<string, unknown>>>(`/api/rooms/${id}/bans`),
+  addAssistantToRoom: (id: string) => request<{ assistantUsername: string; room: RoomDetails }>(`/api/rooms/${id}/assistant`, "POST"),
+  roomBans: (id: string) => request<RoomBan[]>(`/api/rooms/${id}/bans`),
   unbanUser: (roomId: string, userId: string) => request(`/api/rooms/${roomId}/bans/${userId}`, "DELETE"),
   makeAdmin: (roomId: string, userId: string) => request(`/api/rooms/${roomId}/admins/${userId}`, "POST"),
   removeAdmin: (roomId: string, userId: string) => request(`/api/rooms/${roomId}/admins/${userId}`, "DELETE"),

@@ -9,8 +9,22 @@ import {
 } from "../../db/schema.js";
 import type { AuthSession } from "../../lib/auth.js";
 import { HttpError } from "../../lib/http.js";
+import { config } from "../../config.js";
+import { linkXmppUsers, unlinkXmppUsers } from "../xmpp/service.js";
 
 const normalizePair = (left: string, right: string): [string, string] => left < right ? [left, right] : [right, left];
+
+const listSharedDirectConversationIds = async (leftUserId: string, rightUserId: string) => {
+  const rows = await db.execute(sql`
+    select c.id
+    from conversations c
+    join conversation_members cm1 on cm1.conversation_id = c.id and cm1.user_id = ${leftUserId}
+    join conversation_members cm2 on cm2.conversation_id = c.id and cm2.user_id = ${rightUserId}
+    where c.kind = 'direct'
+  `);
+
+  return (rows.rows as Array<{ id: string }>).map((row) => row.id);
+};
 
 export const listContacts = async (auth: AuthSession) => {
   const friendshipsRows = await db.execute(sql`
@@ -42,11 +56,24 @@ export const listContacts = async (auth: AuthSession) => {
     join users req on req.id = fr.requester_id
     join users recv on recv.id = fr.receiver_id
     where fr.status = 'pending'
-      and (fr.requester_id = ${auth.user.id} or fr.receiver_id = ${auth.user.id})
+      and fr.receiver_id = ${auth.user.id}
     order by fr.created_at desc
   `);
 
+  const blockedRows = await db.execute(sql`
+    select
+      u.id,
+      u.username,
+      u.presence,
+      ub.created_at as "blockedAt"
+    from user_blocks ub
+    join users u on u.id = ub.blocked_id
+    where ub.blocker_id = ${auth.user.id}
+    order by u.username asc
+  `);
+
   return {
+    blocked: blockedRows.rows,
     friends: friendshipsRows.rows,
     requests: pendingRows.rows
   };
@@ -89,11 +116,21 @@ export const acceptFriendRequest = async (auth: AuthSession, requestId: string) 
   const [userAId, userBId] = normalizePair(row.requesterId, row.receiverId);
   await db.update(friendRequests).set({ status: "accepted", respondedAt: new Date() }).where(eq(friendRequests.id, row.id));
   await db.insert(friendships).values([{ userAId, userBId }]).onConflictDoNothing();
+
+  const [requester] = await db.select({ username: users.username }).from(users).where(eq(users.id, row.requesterId));
+  if (requester) {
+    await linkXmppUsers(config, requester.username, auth.user.username).catch(() => undefined);
+  }
 };
 
 export const removeFriend = async (auth: AuthSession, userId: string) => {
   const [userAId, userBId] = normalizePair(auth.user.id, userId);
   await db.delete(friendships).where(and(eq(friendships.userAId, userAId), eq(friendships.userBId, userBId)));
+
+  const [target] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
+  if (target) {
+    await unlinkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+  }
 };
 
 export const blockUser = async (auth: AuthSession, userId: string) => {
@@ -101,18 +138,52 @@ export const blockUser = async (auth: AuthSession, userId: string) => {
     throw new HttpError(400, "Cannot block yourself");
   }
   await db.insert(userBlocks).values({ blockerId: auth.user.id, blockedId: userId }).onConflictDoNothing();
-  const [userAId, userBId] = normalizePair(auth.user.id, userId);
-  await db.delete(friendships).where(and(eq(friendships.userAId, userAId), eq(friendships.userBId, userBId)));
 
-  const directConversations = await db.execute(sql`
-    select c.id
-    from conversations c
-    join conversation_members cm1 on cm1.conversation_id = c.id and cm1.user_id = ${auth.user.id}
-    join conversation_members cm2 on cm2.conversation_id = c.id and cm2.user_id = ${userId}
-    where c.kind = 'direct'
-  `);
+  const [target] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId));
+  if (target) {
+    await unlinkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+  }
 
-  for (const row of directConversations.rows as Array<{ id: string }>) {
-    await db.update(conversations).set({ isFrozen: true, updatedAt: new Date() }).where(eq(conversations.id, row.id));
+  for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {
+    await db.update(conversations).set({ isFrozen: true, updatedAt: new Date() }).where(eq(conversations.id, conversationId));
+  }
+};
+
+export const unblockUser = async (auth: AuthSession, userId: string) => {
+  if (userId === auth.user.id) {
+    throw new HttpError(400, "Cannot unblock yourself");
+  }
+
+  await db.delete(userBlocks).where(and(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, userId)));
+
+  const remainingBlocks = await db.select().from(userBlocks).where(
+    or(
+      and(eq(userBlocks.blockerId, auth.user.id), eq(userBlocks.blockedId, userId)),
+      and(eq(userBlocks.blockerId, userId), eq(userBlocks.blockedId, auth.user.id))
+    )
+  );
+
+  if (remainingBlocks.length > 0) {
+    return;
+  }
+
+  const [target] = await db.select({
+    id: users.id,
+    username: users.username
+  }).from(users).where(eq(users.id, userId));
+  if (target) {
+    const [userAId, userBId] = normalizePair(auth.user.id, userId);
+    const existingFriendship = await db.select().from(friendships).where(and(
+      eq(friendships.userAId, userAId),
+      eq(friendships.userBId, userBId)
+    ));
+
+    if (existingFriendship.length > 0) {
+      await linkXmppUsers(config, auth.user.username, target.username).catch(() => undefined);
+    }
+  }
+
+  for (const conversationId of await listSharedDirectConversationIds(auth.user.id, userId)) {
+    await db.update(conversations).set({ isFrozen: false, updatedAt: new Date() }).where(eq(conversations.id, conversationId));
   }
 };
