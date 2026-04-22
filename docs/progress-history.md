@@ -18,6 +18,7 @@
 2026-04-21 21:35 UTC | asked: deploy app to production droplet | done: cleaned old services from new droplet, added persistent swap, deployed Docker Compose stack behind `nginx`, issued Let's Encrypt TLS, and verified public app + health endpoint on `https://chat.memdecks.com` | next: codify deploy assets in repo, wire real SMTP, backups, and continue with XMPP planning
 2026-04-21 22:45 UTC | asked: continue post-deploy plan | done: added SMTP-ready production config, production smoke script, backup/restore scripts and docs, verified `smoke:prod` against live site, and created a validated backup set on the droplet | next: wire real SMTP credentials, automate backups, add monitoring, and continue with thin-slice XMPP
 2026-04-22 01:19 UTC | asked: continue post-deploy hardening without SMTP secrets | done: added `systemd` backup timer assets, install helper, retention support in backup script, and updated production docs/env guidance | next: install timer on droplet, verify scheduled run, then add monitoring or move into thin-slice XMPP
+2026-04-22 01:28 UTC | asked: continue into Jabber/XMPP after backup automation | done: pushed latest branch, updated droplet checkout, enabled and manually verified production backup timer, and landed first thin-slice XMPP assets with `ejabberd`, dashboard API, and admin UI hooks | next: verify real external client login against `xmpp.memdecks.com`, then decide on shared auth or federation follow-up
 
 <hard to make LLM do proper UI without explicit details>
 ---

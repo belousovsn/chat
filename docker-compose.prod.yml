@@ -23,6 +23,33 @@ services:
       timeout: 5s
       retries: 10
 
+  xmpp:
+    profiles: ["xmpp"]
+    image: ghcr.io/processone/ejabberd
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      EJABBERD_MACRO_HOST: ${XMPP_DOMAIN}
+      EJABBERD_MACRO_ADMIN: ${XMPP_ADMIN_JID}
+      EJABBERD_MACRO_APIJID: ${XMPP_API_USER}
+      CTL_ON_CREATE: >-
+        ! register xmppadmin ${XMPP_DOMAIN} ${XMPP_ADMIN_PASSWORD} ;
+        ! register xmppapi ${XMPP_DOMAIN} ${XMPP_API_PASS} ;
+        status
+    ports:
+      - "5222:5222"
+      - "5269:5269"
+      - "127.0.0.1:5443:5443"
+    volumes:
+      - ./ops/xmpp/ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml
+      - xmpp-data:/opt/ejabberd/database
+    healthcheck:
+      test: ["CMD-SHELL", "ejabberdctl status >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
   app:
     build:
       context: .
@@ -48,3 +75,4 @@ services:
 volumes:
   postgres-data:
   uploads:
+  xmpp-data:

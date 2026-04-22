@@ -15,6 +15,7 @@ import { messageRoutes } from "./modules/messages/routes.js";
 import { RealtimeService } from "./modules/presence/service.js";
 import { sessionRoutes } from "./modules/sessions/routes.js";
 import { uploadRoutes } from "./modules/uploads/routes.js";
+import { xmppRoutes } from "./modules/xmpp/routes.js";
 
 const webDist = path.resolve(process.cwd(), "../web/dist");
 
@@ -50,6 +51,7 @@ export const buildApp = async () => {
   await app.register(conversationRoutes);
   await app.register(messageRoutes);
   await app.register(uploadRoutes);
+  await app.register(xmppRoutes);
 
   const realtime = new RealtimeService(app.server, app);
   await realtime.install();

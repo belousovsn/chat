@@ -50,7 +50,8 @@ export function Dashboard() {
     messages,
     publicRooms,
     selectedSummary,
-    sessions
+    sessions,
+    xmppStatus
   } = useDashboardData({
     publicSearch,
     selectedConversationId,
@@ -391,10 +392,12 @@ export function Dashboard() {
     <div className="dashboard oldschool-page live-chat-page">
       <div className="oldschool-window oldschool-bevel live-chat-window">
         <DashboardToolbar
+          onOpenJabber={() => setUtilityPanel("jabber")}
           onOpenCreateRoom={roomModals.openCreateRoom}
           onOpenSettings={() => setUtilityPanel("settings")}
           onOpenSocial={() => setUtilityPanel("social")}
           onSignOut={() => logout.mutate()}
+          showJabber={Boolean(me.data?.user.canViewXmppAdmin)}
           windowTitle={windowTitle}
         />
 
@@ -630,6 +633,9 @@ export function Dashboard() {
           onRefreshSessions={() => {
             void sessions.refetch();
           }}
+          onRefreshXmpp={() => {
+            void xmppStatus.refetch();
+          }}
           onRevokeSession={(sessionId) => {
             void api.revokeSession(sessionId).then(async () => {
               setStatus("Session revoked.");
@@ -648,6 +654,7 @@ export function Dashboard() {
           }}
           requests={contacts.data?.requests}
           sessions={sessions.data?.sessions}
+          xmppStatus={xmppStatus.data}
         />
       )}
 

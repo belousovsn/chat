@@ -9,3 +9,4 @@ export type ConversationSummary = Awaited<ReturnType<typeof api.conversations>>[
 export type PublicRoom = Awaited<ReturnType<typeof api.publicRooms>>[number];
 export type RoomBan = Awaited<ReturnType<typeof api.roomBans>>[number];
 export type SessionEntry = Awaited<ReturnType<typeof api.sessions>>["sessions"][number];
+export type XmppStatus = Awaited<ReturnType<typeof api.xmppStatus>>;

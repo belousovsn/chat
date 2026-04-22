@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
-import type { ContactFriend, ContactRequest, ConversationMember, SessionEntry } from "./types";
+import type {
+  ContactFriend,
+  ContactRequest,
+  ConversationMember,
+  SessionEntry,
+  XmppStatus
+} from "./types";
 
-export type UtilityPanelMode = "details" | "social" | "settings";
+export type UtilityPanelMode = "details" | "social" | "settings" | "jabber";
 type SocialTab = "requests" | "friends" | "add";
 
 type InfoSidebarProps = {
@@ -18,13 +24,15 @@ type InfoSidebarProps = {
   onClose: () => void;
   onCreateDirect: (userId: string, username: string) => Promise<void> | void;
   onDeleteAccount: () => void;
-  onRemoveFriend: (userId: string) => void;
   onRefreshContacts: () => void;
   onRefreshSessions: () => void;
+  onRefreshXmpp: () => void;
+  onRemoveFriend: (userId: string) => void;
   onRevokeSession: (sessionId: string) => void;
   onSendFriendRequest: (input: { message: string; username: string }, onSuccess: () => void, onError: (error: Error) => void) => void;
   requests: ContactRequest[] | undefined;
   sessions: SessionEntry[] | undefined;
+  xmppStatus: XmppStatus | undefined;
 };
 
 export function InfoSidebar(props: InfoSidebarProps) {
@@ -32,6 +40,7 @@ export function InfoSidebar(props: InfoSidebarProps) {
   const [friendSearch, setFriendSearch] = useState("");
   const [socialError, setSocialError] = useState("");
   const [socialTab, setSocialTab] = useState<SocialTab>("requests");
+
   const filteredFriends = useMemo(() => {
     const search = friendSearch.trim().toLowerCase();
     if (!search) {
@@ -43,6 +52,7 @@ export function InfoSidebar(props: InfoSidebarProps) {
       || friend.presence.toLowerCase().includes(search)
     ));
   }, [friendSearch, props.friends]);
+
   const socialWindowTitle = socialTab === "requests"
     ? "Friends Requests Window"
     : socialTab === "friends"
@@ -93,6 +103,7 @@ export function InfoSidebar(props: InfoSidebarProps) {
 
           <div className="oldschool-dialog-body">
             {socialError && <div className="oldschool-inline-error">{socialError}</div>}
+
             {socialTab === "requests" && (
               <section className="oldschool-group oldschool-bevel">
                 <div className="oldschool-inline-form">
@@ -228,6 +239,20 @@ export function InfoSidebar(props: InfoSidebarProps) {
               </div>
             </section>
 
+            {props.xmppStatus && (
+              <section className="oldschool-group oldschool-bevel">
+                <div className="oldschool-inline-form">
+                  <strong>Jabber / XMPP</strong>
+                  <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("jabber")}>Open dashboard</button>
+                </div>
+                <div className="oldschool-empty-note">
+                  {props.xmppStatus.enabled
+                    ? `Client host ${props.xmppStatus.clientHost ?? "not set"}:${props.xmppStatus.ports.client}`
+                    : "Thin-slice XMPP is configured in repo but not enabled in this app env."}
+                </div>
+              </section>
+            )}
+
             <section className="oldschool-group oldschool-bevel">
               <div className="oldschool-group-title">Password and recovery</div>
               <form
@@ -283,6 +308,123 @@ export function InfoSidebar(props: InfoSidebarProps) {
     );
   }
 
+  if (props.mode === "jabber") {
+    return (
+      <aside className="oldschool-overlay live-floating-window jabber-window">
+        <section className="oldschool-dialog oldschool-bevel">
+          <div className="oldschool-titlebar">
+            <span>Jabber Control Window</span>
+            <button type="button" className="oldschool-titlebar-close" onClick={props.onClose}>X</button>
+          </div>
+
+          <div className="oldschool-dialog-body">
+            <section className="oldschool-group oldschool-bevel">
+              <div className="oldschool-inline-form">
+                <strong>Status</strong>
+                <button type="button" className="oldschool-button" onClick={props.onRefreshXmpp}>Refresh</button>
+                <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("settings")}>Back to settings</button>
+              </div>
+              {props.xmppStatus ? (
+                <div className="oldschool-jabber-statgrid">
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Mode</strong>
+                    <span>{props.xmppStatus.enabled ? props.xmppStatus.federation.mode : "disabled"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Domain</strong>
+                    <span>{props.xmppStatus.domain ?? "not set"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Connected users</strong>
+                    <span>{props.xmppStatus.metrics.connectedUsers ?? "n/a"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Incoming federation</strong>
+                    <span>{props.xmppStatus.metrics.incomingS2S ?? "n/a"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Outgoing federation</strong>
+                    <span>{props.xmppStatus.metrics.outgoingS2S ?? "n/a"}</span>
+                  </div>
+                  <div className="oldschool-kv-card oldschool-inset">
+                    <strong>Fetched</strong>
+                    <span>{props.xmppStatus.metrics.fetchedAt ? new Date(props.xmppStatus.metrics.fetchedAt).toLocaleString() : "not yet"}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="oldschool-empty-note">No XMPP data loaded for this account.</div>
+              )}
+            </section>
+
+            {props.xmppStatus && (
+              <>
+                <section className="oldschool-group oldschool-bevel">
+                  <div className="oldschool-group-title">Client setup</div>
+                  <div className="oldschool-jabber-grid">
+                    <div className="oldschool-inset oldschool-kv-panel">
+                      <div><strong>Host:</strong> {props.xmppStatus.clientHost ?? "not set"}</div>
+                      <div><strong>Client port:</strong> {props.xmppStatus.ports.client}</div>
+                      <div><strong>Admin port:</strong> {props.xmppStatus.ports.admin}</div>
+                      <div><strong>Federation port:</strong> {props.xmppStatus.ports.federation}</div>
+                      <div><strong>Compose profile:</strong> {props.xmppStatus.composeProfile}</div>
+                      <div><strong>Admin JID:</strong> {props.xmppStatus.adminJid ?? "not set"}</div>
+                    </div>
+                    <div className="oldschool-inset oldschool-command-panel">
+                      <strong>Thin-slice commands</strong>
+                      <ul className="oldschool-code-list">
+                        {props.xmppStatus.testCommands.map((command) => (
+                          <li key={command}>
+                            <code>{command}</code>
+                          </li>
+                        ))}
+                      </ul>
+                      {props.xmppStatus.adminUrl && (
+                        <a className="oldschool-button" href={props.xmppStatus.adminUrl} target="_blank" rel="noreferrer">Open admin URL</a>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="oldschool-group oldschool-bevel">
+                  <div className="oldschool-group-title">Sample sessions</div>
+                  <div className="oldschool-list oldschool-inset compact">
+                    {props.xmppStatus.metrics.sampleSessions.length ? props.xmppStatus.metrics.sampleSessions.map((session) => (
+                      <div key={session.jid} className="oldschool-session-row">
+                        <div>
+                          <strong>{session.jid}</strong>
+                          <span>{session.ip}:{session.port} via {session.connection} / {session.status || "available"}</span>
+                        </div>
+                        <span>{session.uptime}s</span>
+                      </div>
+                    )) : (
+                      <div className="oldschool-empty-note">No active XMPP sessions reported yet.</div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="oldschool-group oldschool-bevel">
+                  <div className="oldschool-group-title">Warnings</div>
+                  <div className="oldschool-inset oldschool-warning-panel">
+                    {props.xmppStatus.warnings.length ? (
+                      <ul className="oldschool-warning-list">
+                        {props.xmppStatus.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    ) : (
+                      <div className="oldschool-empty-note">No XMPP warnings.</div>
+                    )}
+                    {props.xmppStatus.lastError && (
+                      <div className="oldschool-inline-error">Last error: {props.xmppStatus.lastError}</div>
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
+        </section>
+      </aside>
+    );
+  }
+
   return (
     <aside className="oldschool-overlay live-floating-window details-window">
       <section className="oldschool-dialog oldschool-bevel">
@@ -306,6 +448,7 @@ export function InfoSidebar(props: InfoSidebarProps) {
             </div>
             <div className="oldschool-inline-form">
               <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("social")}>Friends</button>
+              {props.xmppStatus && <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("jabber")}>Jabber</button>}
               <button type="button" className="oldschool-button" onClick={() => props.onChangeMode("settings")}>Settings</button>
             </div>
           </section>

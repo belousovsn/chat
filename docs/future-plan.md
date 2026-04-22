@@ -37,16 +37,15 @@ These tasks reduce the risk of outages, data loss, and security problems.
 
 ## Jabber / XMPP Next Steps
 
-The safest path is to add XMPP as a separate service first instead of trying to turn the current Node app into an XMPP server.
+Thin-slice XMPP assets now exist in repo using `ejabberd` as a separate service. See [docs/xmpp-thin-slice.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-thin-slice.md).
 
-- Start with a thin slice: single-server XMPP login and messaging on the same droplet, no federation yet.
-- Use a dedicated XMPP server such as `ejabberd` in Docker Compose so it fits the current deployment model.
+- Verify real external client login and message exchange against the public hostname.
 - Choose the public XMPP hostname. Recommended: `xmpp.memdecks.com`.
 - Add DNS for that host and keep the record DNS-only if direct TCP access is needed.
 - Reserve and document `5222` for client connections.
 - Reserve and document `5269` for server-to-server federation later.
 - Reserve and document `5443` for admin or HTTPS endpoints if exposed.
-- Decide how accounts map between the app and XMPP. The simplest first step is separate XMPP credentials for test users.
+- Decide how accounts map between the app and XMPP. Current thin slice uses separate XMPP credentials for test users.
 - Plan shared auth later through external auth or app-managed provisioning if the thin slice succeeds.
 - Define the first acceptance test: create a user, log into a real XMPP client, exchange messages between two test accounts, and confirm the web app still works unchanged.
 - After basic login works, decide whether to integrate XMPP presence, roster sync, or message bridging with the web app. Those should be separate milestones, not part of the first slice.
@@ -56,5 +55,5 @@ The safest path is to add XMPP as a separate service first instead of trying to 
 
 1. Finish immediate production follow-ups, especially real SMTP and backup coverage.
 2. Harden operations enough that restores, monitoring, and routine deploys are predictable.
-3. Stand up `ejabberd` as an isolated thin-slice XMPP service.
-4. Test with real Jabber clients before designing any deeper integration with the web chat app.
+3. Enable the existing `ejabberd` thin slice on the droplet and test with real Jabber clients.
+4. Only after that, design deeper integration with the web chat app.

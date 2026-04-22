@@ -12,6 +12,7 @@ export const sessionCookieName = "chat_session";
 export type AuthSession = {
   sessionId: string;
   user: {
+    canViewXmppAdmin: boolean;
     id: string;
     email: string;
     username: string;
@@ -39,6 +40,8 @@ export const setSessionCookie = async (reply: FastifyReply, sessionId: string) =
 export const clearSessionCookie = (reply: FastifyReply) => {
   reply.clearCookie(sessionCookieName, { path: "/" });
 };
+
+const canViewXmppAdmin = (username: string) => config.xmppAdminUsers.includes(username);
 
 export const parseSessionCookie = async (request: FastifyRequest) => {
   const raw = request.cookies[sessionCookieName];
@@ -81,6 +84,7 @@ export const loadAuth = async (request: FastifyRequest): Promise<AuthSession | n
   return {
     sessionId: row.sessionId,
     user: {
+      canViewXmppAdmin: canViewXmppAdmin(row.username),
       id: row.userId,
       email: row.email,
       username: row.username,
@@ -119,6 +123,7 @@ export const getAuthSessionById = async (sessionId: string): Promise<AuthSession
   return {
     sessionId: row.sessionId,
     user: {
+      canViewXmppAdmin: canViewXmppAdmin(row.username),
       id: row.userId,
       email: row.email,
       username: row.username,

@@ -13,7 +13,8 @@ import type {
   RoomBan,
   RoomDetails,
   RoomSummary,
-  SendMessageInput
+  SendMessageInput,
+  XmppStatus
 } from "@chat/shared";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -51,6 +52,7 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) => request<{ ok: boolean }>("/api/auth/change-password", "POST", { currentPassword, newPassword }),
   deleteAccount: () => request<{ ok: boolean }>("/api/me", "DELETE"),
   sessions: () => request<AuthSession>("/api/sessions"),
+  xmppStatus: () => request<XmppStatus>("/api/xmpp/status"),
   revokeSession: (sessionId: string) => request<AuthSession>("/api/sessions/revoke", "POST", { sessionId }),
   contacts: () => request<ContactsResponse>("/api/contacts"),
   sendFriendRequest: (input: FriendRequestInput) => request("/api/contacts/requests", "POST", input),

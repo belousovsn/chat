@@ -24,6 +24,7 @@ Relevant files:
 - [.env.production.example](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/.env.production.example)
 - [ops/nginx/chat.memdecks.com.conf](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/nginx/chat.memdecks.com.conf)
 - [docs/backup-and-restore.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/backup-and-restore.md)
+- [docs/xmpp-thin-slice.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-thin-slice.md)
 
 ## One-Time Server Prep
 
@@ -155,4 +156,4 @@ systemctl list-timers chat-backup.timer --no-pager
 - Real SMTP is not configured yet.
 - Backup automation assets are in repo but not yet enabled on the server.
 - Monitoring and log aggregation are still manual.
-- XMPP/Jabber is not part of this production deploy yet.
+- XMPP/Jabber thin-slice assets exist in repo, but the `xmpp` profile is not enabled on the server yet.

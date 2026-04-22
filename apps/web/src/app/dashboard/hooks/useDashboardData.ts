@@ -28,6 +28,11 @@ export function useDashboardData(args: UseDashboardDataArgs) {
     queryKey: dashboardQueryKeys.sessions(),
     queryFn: api.sessions
   });
+  const xmppStatus = useQuery({
+    queryKey: dashboardQueryKeys.xmppStatus(),
+    queryFn: api.xmppStatus,
+    enabled: Boolean(me.data?.user.canViewXmppAdmin)
+  });
   const publicRooms = useQuery({
     queryKey: dashboardQueryKeys.publicRooms(publicSearch),
     queryFn: () => api.publicRooms(publicSearch)
@@ -67,6 +72,7 @@ export function useDashboardData(args: UseDashboardDataArgs) {
     messages,
     publicRooms,
     selectedSummary,
-    sessions
+    sessions,
+    xmppStatus
   };
 }

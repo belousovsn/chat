@@ -43,6 +43,18 @@ Production deployment assets now live in:
 
 Current deployed host: `https://chat.memdecks.com`
 
+## Jabber / XMPP Thin Slice
+
+Repo now includes optional `ejabberd` assets and a web-side XMPP admin panel.
+
+Start local stack with XMPP:
+
+```bash
+docker compose --profile xmpp up --build
+```
+
+See [docs/xmpp-thin-slice.md](docs/xmpp-thin-slice.md) for local accounts, client connection, and production profile wiring.
+
 ## Local Non-Docker Smoke Path
 
 Use this when Docker unavailable and you still need seeded demo verification.

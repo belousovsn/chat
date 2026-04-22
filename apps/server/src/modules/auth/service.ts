@@ -35,7 +35,9 @@ export const buildSessionPayload = async (auth: AuthSession) => {
   }).from(sessions).where(eq(sessions.userId, auth.user.id));
 
   return {
-    user: auth.user,
+    user: {
+      ...auth.user
+    },
     sessions: activeSessions.map((session) => ({
       id: session.id,
       userAgent: session.userAgent,

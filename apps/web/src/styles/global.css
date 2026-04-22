@@ -1794,6 +1794,10 @@ label {
   width: min(760px, calc(100vw - 1rem));
 }
 
+.jabber-window .oldschool-dialog {
+  width: min(980px, calc(100vw - 1rem));
+}
+
 .room-window .oldschool-dialog {
   width: min(980px, calc(100vw - 1rem));
 }
@@ -1826,6 +1830,45 @@ label {
   color: #7c1818;
   border: 1px solid #b98989;
   background: #f3dddd;
+}
+
+.oldschool-jabber-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.oldschool-jabber-statgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.oldschool-kv-card,
+.oldschool-kv-panel,
+.oldschool-command-panel,
+.oldschool-warning-panel {
+  padding: 0.45rem;
+}
+
+.oldschool-kv-card,
+.oldschool-kv-panel,
+.oldschool-command-panel {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.oldschool-code-list,
+.oldschool-warning-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.oldschool-code-list code {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .oldschool-modal-columns {
@@ -1965,6 +2008,11 @@ label {
 
 @media (max-width: 640px) {
   .oldschool-modal-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .oldschool-jabber-grid,
+  .oldschool-jabber-statgrid {
     grid-template-columns: 1fr;
   }
 

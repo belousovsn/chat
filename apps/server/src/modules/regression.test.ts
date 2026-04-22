@@ -20,6 +20,7 @@ type UserRow = {
 type AuthSession = {
   sessionId: string;
   user: {
+    canViewXmppAdmin: boolean;
     id: string;
     email: string;
     username: string;
@@ -102,6 +103,7 @@ const loadDeps = async (): Promise<ServerDeps> => {
 const toAuthSession = (user: UserRow): AuthSession => ({
   sessionId: randomUUID(),
   user: {
+    canViewXmppAdmin: false,
     id: user.id,
     email: user.email,
     username: user.username,
