@@ -55,5 +55,5 @@ Thin-slice XMPP assets now exist in repo using `ejabberd` as a separate service.
 
 1. Finish immediate production follow-ups, especially real SMTP and backup coverage.
 2. Harden operations enough that restores, monitoring, and routine deploys are predictable.
-3. Enable the existing `ejabberd` thin slice on the droplet and test with real Jabber clients.
+3. Verify real Jabber clients against the already-running `ejabberd` thin slice on `xmpp.memdecks.com:5222`.
 4. Only after that, design deeper integration with the web chat app.

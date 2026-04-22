@@ -156,4 +156,4 @@ systemctl list-timers chat-backup.timer --no-pager
 - Real SMTP is not configured yet.
 - Backup automation assets are in repo but not yet enabled on the server.
 - Monitoring and log aggregation are still manual.
-- XMPP/Jabber thin-slice assets exist in repo, but the `xmpp` profile is not enabled on the server yet.
+- XMPP/Jabber thin slice is now running on `xmpp.memdecks.com:5222`, but real external client verification and federation testing are still pending.
