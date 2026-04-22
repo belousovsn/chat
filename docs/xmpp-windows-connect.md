@@ -54,6 +54,12 @@ What `kinzul` and `da_test` mean:
 - those usernames are in `XMPP_ADMIN_USERS` for the web app dashboard
 - they are not XMPP accounts unless they were also created inside `ejabberd`
 
+Presence note:
+
+- direct messages can work even when contacts still look offline
+- for live online/offline status, the users usually need a roster subscription relationship
+- in this repo that can be created from the server with [ops/scripts/xmpp-link-users.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/xmpp-link-users.sh)
+
 Current server-side validation on 2026-04-22:
 
 - TCP on `5222` is reachable from the public internet

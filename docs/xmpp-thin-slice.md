@@ -29,6 +29,7 @@ Then create two test XMPP accounts:
 ```bash
 ./ops/scripts/xmpp-register-user.sh alice localhost replace-me
 ./ops/scripts/xmpp-register-user.sh bob localhost replace-me
+./ops/scripts/xmpp-link-users.sh alice bob localhost
 ```
 
 Thin-slice local defaults:
@@ -55,6 +56,7 @@ Enable it on the server:
 sudo ./ops/scripts/refresh-xmpp-certs.sh xmpp.chat.example.com
 docker compose --env-file .env.production -f docker-compose.prod.yml --profile xmpp up -d xmpp
 COMPOSE_ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml ./ops/scripts/xmpp-register-user.sh alice xmpp.chat.example.com replace-me
+COMPOSE_ENV_FILE=.env.production COMPOSE_FILE=docker-compose.prod.yml ./ops/scripts/xmpp-link-users.sh alice bob xmpp.chat.example.com
 ```
 
 Recommended production DNS and ports:
@@ -99,6 +101,7 @@ Current production behavior:
 - production uses a valid Let's Encrypt certificate for `xmpp.memdecks.com`
 - client connections should use STARTTLS on `5222`
 - HTTPS discovery on `xmpp.memdecks.com` should also present the `xmpp.memdecks.com` certificate
+- presence status between test accounts requires roster subscription; use `xmpp-link-users.sh` or accept presence requests in the client
 - use the demo credentials only for connection testing
 
 Web app note:
