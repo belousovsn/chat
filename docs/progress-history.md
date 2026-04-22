@@ -17,6 +17,7 @@
 2026-04-20 23:22 UTC | asked: fix frontend UX beyond visual polish | done: refactored web shell into chat-first flow with tabbed left navigator, on-demand details/people/settings drawer, mobile list/chat split, pinned composer, and proper message-scroll behavior near input; `@chat/web build` passed | next: browser QA for new navigation flow, then final closeout after Docker verification
 2026-04-21 21:35 UTC | asked: deploy app to production droplet | done: cleaned old services from new droplet, added persistent swap, deployed Docker Compose stack behind `nginx`, issued Let's Encrypt TLS, and verified public app + health endpoint on `https://chat.memdecks.com` | next: codify deploy assets in repo, wire real SMTP, backups, and continue with XMPP planning
 2026-04-21 22:45 UTC | asked: continue post-deploy plan | done: added SMTP-ready production config, production smoke script, backup/restore scripts and docs, verified `smoke:prod` against live site, and created a validated backup set on the droplet | next: wire real SMTP credentials, automate backups, add monitoring, and continue with thin-slice XMPP
+2026-04-22 01:19 UTC | asked: continue post-deploy hardening without SMTP secrets | done: added `systemd` backup timer assets, install helper, retention support in backup script, and updated production docs/env guidance | next: install timer on droplet, verify scheduled run, then add monitoring or move into thin-slice XMPP
 
 <hard to make LLM do proper UI without explicit details>
 ---

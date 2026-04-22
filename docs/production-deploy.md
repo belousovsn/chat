@@ -52,6 +52,8 @@ The current droplet was also cleaned up from older containers and given a persis
    - `SMTP_SECURE`
    - `SMTP_USER`
    - `SMTP_PASS`
+   - `BACKUP_DIR` if you want backups outside `/srv/chat/backups`
+   - `BACKUP_KEEP_DAYS` if you want automatic retention pruning
 4. Keep `RUN_SEED=false` for public deployment unless you explicitly want demo users.
 
 Important:
@@ -136,10 +138,21 @@ Server-side scripts:
 
 - [ops/scripts/backup-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/backup-prod.sh)
 - [ops/scripts/restore-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/restore-prod.sh)
+- [ops/scripts/install-prod-backup-timer.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/install-prod-backup-timer.sh)
+- [ops/systemd/chat-backup.service](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.service)
+- [ops/systemd/chat-backup.timer](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.timer)
+
+To enable daily automated backups on the server:
+
+```bash
+chmod +x ops/scripts/install-prod-backup-timer.sh
+sudo ./ops/scripts/install-prod-backup-timer.sh /srv/chat
+systemctl list-timers chat-backup.timer --no-pager
+```
 
 ## Known Gaps
 
 - Real SMTP is not configured yet.
-- Backups are not automated yet.
+- Backup automation assets are in repo but not yet enabled on the server.
 - Monitoring and log aggregation are still manual.
 - XMPP/Jabber is not part of this production deploy yet.

@@ -6,6 +6,9 @@ Scripts:
 
 - [ops/scripts/backup-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/backup-prod.sh)
 - [ops/scripts/restore-prod.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/restore-prod.sh)
+- [ops/scripts/install-prod-backup-timer.sh](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/scripts/install-prod-backup-timer.sh)
+- [ops/systemd/chat-backup.service](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.service)
+- [ops/systemd/chat-backup.timer](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/ops/systemd/chat-backup.timer)
 
 Both scripts assume:
 
@@ -32,6 +35,14 @@ You can override the target root directory with:
 BACKUP_DIR=/srv/chat-backups ./ops/scripts/backup-prod.sh
 ```
 
+You can also prune old backup directories automatically:
+
+```bash
+BACKUP_KEEP_DAYS=7 ./ops/scripts/backup-prod.sh
+```
+
+When `BACKUP_KEEP_DAYS` is set, the script deletes backup directories under `BACKUP_DIR` older than that many days after a successful run.
+
 ## Backup Usage
 
 From the production checkout:
@@ -45,7 +56,38 @@ Recommended next step:
 
 - run it manually once
 - copy the resulting backup directory off the droplet
-- then wire it into cron or a systemd timer
+- then wire it into systemd timer automation
+
+## Systemd Timer
+
+Repo now includes `systemd` units for daily backup automation at `03:30` server local time with `Persistent=true`, so missed runs catch up after reboot.
+
+Install on the production host:
+
+```bash
+chmod +x ops/scripts/install-prod-backup-timer.sh
+sudo ./ops/scripts/install-prod-backup-timer.sh /srv/chat
+```
+
+Verify schedule:
+
+```bash
+systemctl status chat-backup.timer --no-pager
+systemctl list-timers chat-backup.timer --no-pager
+```
+
+Override defaults by editing `/etc/systemd/system/chat-backup.service` after install, then reload:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart chat-backup.timer
+```
+
+Useful knobs in the service unit:
+
+- `BACKUP_DIR` for backup destination root
+- `BACKUP_KEEP_DAYS` for retention window
+- `OnCalendar` in `chat-backup.timer` for run time
 
 ## Restore Usage
 
@@ -71,3 +113,4 @@ The restore flow:
 - Keep at least one recent backup off the droplet.
 - Do not run restore while users are actively writing data unless you accept data loss after the backup point.
 - If you change compose service names or runtime paths, update these scripts too.
+- `install-prod-backup-timer.sh` must run as `root` because it writes unit files under `/etc/systemd/system`.

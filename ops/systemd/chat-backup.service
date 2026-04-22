@@ -1,0 +1,14 @@
+[Unit]
+Description=Classic Chat production backup
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+ConditionPathExists=__APP_DIR__/.env.production
+ConditionPathExists=__APP_DIR__/docker-compose.prod.yml
+
+[Service]
+Type=oneshot
+WorkingDirectory=__APP_DIR__
+Environment=BACKUP_DIR=__APP_DIR__/backups
+Environment=BACKUP_KEEP_DAYS=7
+ExecStart=/usr/bin/env bash __APP_DIR__/ops/scripts/backup-prod.sh
+Nice=10
