@@ -89,27 +89,15 @@ Current dashboard fields:
 
 ## Windows Quick Connect
 
-Shortest path on Windows:
+Use the dedicated Windows note for exact client fields and troubleshooting:
 
-1. Install Gajim from `https://gajim.org/download/`.
-2. Open Gajim and choose existing XMPP account.
-3. Enter JID: `demoa@xmpp.memdecks.com`
-4. Enter password: `TSAbLDf1jn_1mperAAJ7qR2b`
-5. If client asks for manual host, use:
-   - host: `xmpp.memdecks.com`
-   - port: `5222`
-6. Connect.
+- [docs/xmpp-windows-connect.md](/C:/Users/sbelousov/Documents/Projects/DA_hackaton_chat/docs/xmpp-windows-connect.md)
 
-Expected behavior now:
+Current production behavior:
 
-- production now uses Let’s Encrypt certs for `xmpp.memdecks.com`
-- client should prefer STARTTLS on `5222`
-- use demo credentials only, not personal password
-
-Second demo account for message tests:
-
-- `demob@xmpp.memdecks.com`
-- password: `SOh9FI1xTzokyUwvC8hirHn9`
+- production uses a valid Let's Encrypt certificate for `xmpp.memdecks.com`
+- client connections should use STARTTLS on `5222`
+- use the demo credentials only for connection testing
 
 Web app note:
 
