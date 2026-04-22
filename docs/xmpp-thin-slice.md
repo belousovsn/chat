@@ -67,6 +67,11 @@ Recommended production DNS and ports:
 
 The web app exposes a Jabber admin window for usernames listed in `XMPP_ADMIN_USERS`.
 
+Current production usernames with dashboard access:
+
+- `kinzul`
+- `da_test`
+
 Current dashboard fields:
 
 - connected user count
@@ -75,6 +80,34 @@ Current dashboard fields:
 - sample connected sessions
 - compose/profile and client setup commands
 - warning state if API credentials or service are missing
+
+## Windows Quick Connect
+
+Shortest path on Windows:
+
+1. Install Gajim from `https://gajim.org/download/`.
+2. Open Gajim and choose existing XMPP account.
+3. Enter JID: `demoa@xmpp.memdecks.com`
+4. Enter password: `TSAbLDf1jn_1mperAAJ7qR2b`
+5. If client asks for manual host, use:
+   - host: `xmpp.memdecks.com`
+   - port: `5222`
+6. Connect.
+
+Expected caveat right now:
+
+- this thin slice is demo-grade and not fully TLS-hardened yet
+- client may warn about insecure or unencrypted connection
+- use demo credentials only, not personal password
+
+Second demo account for message tests:
+
+- `demob@xmpp.memdecks.com`
+- password: `SOh9FI1xTzokyUwvC8hirHn9`
+
+Web app note:
+
+- if you sign into the chat web UI as `kinzul` or `da_test`, the Settings window can show the Jabber dashboard because those usernames are already present in `XMPP_ADMIN_USERS`
 
 ## Next Milestones
 
